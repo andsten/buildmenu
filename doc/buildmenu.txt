@@ -1,0 +1,22 @@
+*buildmenu.txt*	Plugin for providing a list of build targets
+
+If you use the build-tool Waf http://code.google.com/p/waf, this plugin
+will issue './waf list' and provide you a list of the Waf build targets of
+your project from which you can select and build.
+
+This script is still far from being feature complete.
+
+Mappings:
+<Leader>a   or   <Plug>BuildmenuToggle
+	Toggle buffer showing list of build targets.
+
+Commands:
+:BuildmenuToggle
+	Toggle buffer showing list of build targets.
+
+						*buildmenu-settings*
+This plugin doesn't yet have any settings.
+
+						*buildmenu-license*
+The plugin Buildmenu is released under the wtfpl.
+See http://sam.zoy.org/wtfpl/COPYING.
