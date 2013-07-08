@@ -9,84 +9,66 @@
 "
 " ============================================================================
 
-" SECTION: Script init stuff {{{1
-"============================================================
 if exists("g:loaded_buildmenu")
   finish
 endif
 let g:loaded_buildmenu = 1
-let g:BuildmenuMakePrg = "./waf"
 
-"for line continuation - see :help use-cpo-save
+" for line continuation - see :help use-cpo-save
 let s:save_cpo = &cpo
 set cpo&vim
 
-"see :help using-<Plug>
+
+
+" SECTION: global variables/settings
+" ============================================================================
+
+" this ist just a safe value to initialize this variable to cause no harm.
+" should not be changed
+let g:BuildmenuMakeCmd = "mak"
+
+" setting
+" shell command to obtain list of buildtargets. vim option 'makeprg' is
+" expected to specify the 'waf' binary, so the resulting default value
+" should be './waf list'
+let g:BuildmenuGetTargetListCmd = &makeprg . " list"
+
+
+
+" SECTION: script local variables      
+" ============================================================================
+let s:abortmsg = ". aborting buildmenu plugin."
+
+
+
+" SECTION: key mappings      
+" ============================================================================
 if !hasmapto(':call ListBuildTargets<CR>')
   map <unique> <Leader>a  <Plug>BuildmenuToggle
 endif
 noremap <unique> <script> <Plug>BuildmenuToggle  :call <SID>BuildmenuToggle()<CR>
 
-"set user-command
+
+
+" SECTION: user commands      
+" ============================================================================
 if !exists(":BuildmenuToggle")
   command -nargs=0  BuildmenuToggle  :call <SID>BuildmenuToggle()
   command -nargs=0  BuildmenuOpen    :call <SID>BuildmenuOpen()
   command -nargs=0  BuildmenuClose   :call <SID>BuildmenuClose()
-  command -nargs=0  BuildmenuMake    :call <SID>BuildmenuMake()
+  command -nargs=0  BuildmenuMake    :exec g:BuildmenuMakeCmd
 endif
 
-function! s:BuildmenuToggle()
-	let retval = s:PreChecks()
-	if retval != 0
-		return
-	endif
-	let retval = s:OpenListWindow()
-	if retval == 0
-		call s:CloseListWindow()
-	endif
-endfunction
 
+
+" SECTION: functions
+" ============================================================================
 function! s:BuildmenuOpen()
-	let retval = s:PreChecks()
-	if retval != 0
-		return
-	endif
-	call s:OpenListWindow()
-endfunction
-
-function! s:BuildmenuClose()
-	call s:CloseListWindow()
-endfunction
-
-
-function! s:PreChecks()
-	if !filereadable("waf")
-		echo "waf not found in " . getcwd()
-		return 1
-	endif
-	if !filereadable("wscript") 
-		echo "wscript not found in " .getcwd()
-		return 1
-	endif
-	return 0
-endfunction
-
-function! s:getWafBuildList()
-	let wafoutput = system("./waf list")
-	let s:wafbuildlist = split(wafoutput)
-	call remove(s:wafbuildlist, -4, -1)
-	let longest=0
-	for n in s:wafbuildlist
-		let linelen = strlen(n)
-		if linelen > longest
-			let longest=linelen
-		endif
-	endfor
-	return longest
-endfunction
-
-function! s:OpenListWindow()
 	if !exists('t:BuildmenuBufName')
+		let retval = s:PreChecks()
+		if retval != 0
+			return -1
+		endif
 		let width = s:getWafBuildList()
 		let t:BuildmenuBufName = s:nextBufferName()
 		exec "botright vertical " . width . " new"
@@ -104,6 +86,62 @@ function! s:OpenListWindow()
 	endif
 endfunction
 
+function! s:BuildmenuClose()
+	if exists('t:BuildmenuBufName')
+		silent! exec "bwipeout " . t:BuildmenuBufName
+		unlet! t:BuildmenuBufName
+	endif
+endfunction
+
+function! s:BuildmenuToggle()
+	let retval = s:BuildmenuOpen()
+	if retval == 0
+		call s:BuildmenuClose()
+	endif
+endfunction
+
+function! s:PreChecks()
+	if match(&makeprg, "waf", strlen(&makeprg)-strlen("waf")) == -1
+		echoe printf("error: vim option 'makeprg' does not specify 'waf' binary (current value='%s')", &makeprg) . s:abortmsg
+		return 1
+	endif
+	if !filereadable(&makeprg)
+		echoe "binary specified in 'makeprg' not found (" . &makeprg . "). " . s:abortmsg
+		return 1
+	endif
+	if !filereadable("wscript") 
+		echoe "warning: file 'wscript' not found in current working directory (" . getcwd() . ")"
+	endif
+	return 0
+endfunction
+
+function! s:getWafBuildList()
+	let wafoutput = system(g:BuildmenuGetTargetListCmd)
+	let s:wafbuildlist = split(wafoutput)
+	call remove(s:wafbuildlist, -4, -1)
+	let longest=0
+	for n in s:wafbuildlist
+		let linelen = strlen(n)
+		if linelen > longest
+			let longest=linelen
+		endif
+	endfor
+	return longest
+endfunction
+
+function! s:ExecBuildCmd()
+	let g:BuildmenuMakeCmd = "mak " . "--targets=" . get(s:wafbuildlist, line(".")-1)
+	let s:buildlistlinepos = line(".")
+	call s:BuildmenuClose()
+	call histadd(":", g:BuildmenuMakeCmd)
+	exec g:BuildmenuMakeCmd
+endfunction
+
+
+
+" SECTION: helper functions (thanks to the author of NERDtree ;-) )
+" ============================================================================
+"
 function! s:SetThrowAwayBufferWinOptions()
    	setlocal winfixwidth
 	setlocal noswapfile
@@ -115,29 +153,6 @@ function! s:SetThrowAwayBufferWinOptions()
 	setlocal nofoldenable
 	setlocal nobuflisted
 	setlocal nospell
-endfunction
-
-function! s:ExecBuildCmd()
-	let s:buildcmd = "mak " . "--targets=" . get(s:wafbuildlist, line(".")-1)
-	let s:buildlistlinepos = line(".")
-	call s:CloseListWindow()
-	call s:BuildmenuMake()
-endfunction
-
-function! s:BuildmenuMake()
-	let save_makeprg = &makeprg
-	let &makeprg=g:BuildmenuMakePrg
-	call histadd(":", "BuildmenuMake")
-	exec s:buildcmd
-	let &makeprg= save_makeprg
-endfunction
-
-function! s:CloseListWindow()
-	if exists('t:BuildmenuBufName')
-		silent! exec "buffer " . t:BuildmenuBufName
-		quit!
-		unlet! t:BuildmenuBufName
-	endif
 endfunction
 
 function! s:nextBufferName()
@@ -154,6 +169,8 @@ function! s:nextBufferNumber()
     endif
     return s:NextBufNum
 endfunction
+
+
 
 "reset &cpo back to users setting
 let &cpo = s:save_cpo
