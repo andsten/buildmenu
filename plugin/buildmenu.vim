@@ -84,6 +84,7 @@ function! s:BuildmenuOpen()
 		normal dd
 		map <buffer> <CR> :call <SID>ExecBuildCmd()<CR>
 		map <buffer> <Space> :call <SID>MarkUnMarkBuildTarget()<CR>
+		map <buffer> R :call <SID>Refresh()<CR>
 		syntax case match
 		call s:SetThrowAwayBufferWinOptions()
 		if exists("s:buildlistlinepos")
@@ -94,6 +95,15 @@ function! s:BuildmenuOpen()
 	else 
 		return 0
 	endif
+endfunction
+
+function! s:Refresh()
+	normal gg^VGd
+	call s:getWafBuildList()
+	call append(".", s:BuildTargets)
+	normal dd
+	syntax clear
+	syntax case match
 endfunction
 
 function! s:BuildmenuClose()
