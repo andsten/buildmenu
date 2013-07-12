@@ -27,6 +27,8 @@ set cpo&vim
 " should not be changed
 let g:BuildmenuMakeCmd = "mak"
 
+let g:BuildmenuMinWidth = 20
+
 " setting
 " shell command to obtain list of buildtargets. vim option 'makeprg' is
 " expected to specify the 'waf' binary, so the resulting default value
@@ -38,6 +40,7 @@ let g:BuildmenuGetTargetListCmd = &makeprg . " list"
 " SECTION: script local variables      
 " ============================================================================
 let s:abortmsg = ". aborting buildmenu plugin."
+let s:BuildmenuWidth = g:BuildmenuMinWidth
 
 
 
@@ -63,23 +66,30 @@ endif
 
 " SECTION: functions
 " ============================================================================
+let s:init=0
 function! s:BuildmenuOpen()
-	if !exists('t:BuildmenuBufName')
+	if s:init == 0
 		let retval = s:PreChecks()
 		if retval != 0
 			return -1
 		endif
-		let width = s:getWafBuildList()
+		call s:getWafBuildList()
+		let s:init = 1
+	endif
+	if !exists('t:BuildmenuBufName')
 		let t:BuildmenuBufName = s:nextBufferName()
-		exec "botright vertical " . width . " new"
+		exec "botright vertical " . s:BuildmenuWidth . " new"
 		exec "edit " . t:BuildmenuBufName
-		call append(".", s:wafbuildlist)
+		call append(".", s:BuildTargets)
 		normal dd
 		map <buffer> <CR> :call <SID>ExecBuildCmd()<CR>
+		map <buffer> <Space> :call <SID>MarkUnMarkBuildTarget()<CR>
+		syntax case match
 		call s:SetThrowAwayBufferWinOptions()
 		if exists("s:buildlistlinepos")
 			call cursor(s:buildlistlinepos, 1)
 		endif
+		call s:ReMarkBuildTargets()
 		return 1
 	else 
 		return 0
@@ -117,27 +127,57 @@ endfunction
 
 function! s:getWafBuildList()
 	let wafoutput = system(g:BuildmenuGetTargetListCmd)
-	let s:wafbuildlist = split(wafoutput)
-	call remove(s:wafbuildlist, -4, -1)
-	let longest=0
-	for n in s:wafbuildlist
+	let s:BuildTargets = split(wafoutput)
+	call remove(s:BuildTargets, -4, -1)
+	let s:BuildmenuWidth = g:BuildmenuMinWidth
+	for n in s:BuildTargets
 		let linelen = strlen(n)
-		if linelen > longest
-			let longest=linelen
+		if linelen > s:BuildmenuWidth
+			let s:BuildmenuWidth=linelen
 		endif
 	endfor
-	return longest
+	let s:MarkedBuildTargets = []
 endfunction
 
 function! s:ExecBuildCmd()
-	let g:BuildmenuMakeCmd = "mak " . "--targets=" . get(s:wafbuildlist, line(".")-1)
+	if len(s:MarkedBuildTargets) == 0
+		call s:MarkUnMarkBuildTarget()
+	endif
+	call s:AssembleBuildCmd()
 	let s:buildlistlinepos = line(".")
 	call s:BuildmenuClose()
 	call histadd(":", g:BuildmenuMakeCmd)
 	exec g:BuildmenuMakeCmd
 endfunction
 
+function! s:AssembleBuildCmd()
+	let g:BuildmenuMakeCmd = "mak " . "--targets=" . join(s:MarkedBuildTargets, ",")
+endfunction
 
+function! s:MarkUnMarkBuildTarget()
+	let index = line(".")-1
+	let target = get(s:BuildTargets, index)
+	let markIndex = index(s:MarkedBuildTargets, target)
+	if markIndex < 0
+		call add(s:MarkedBuildTargets, target)
+		exec "syntax keyword buildmenuTarget" . index . " " . target
+		exec "highlight link buildmenuTarget" . index . " Directory"
+	else
+		exec "highlight link buildmenuTarget" . index . " NONE"
+		exec "syntax clear buildmenuTarget" . index
+		call remove(s:MarkedBuildTargets, markIndex)
+	endif
+	call s:AssembleBuildCmd()
+	echo g:BuildmenuMakeCmd
+endfunction
+
+function! s:ReMarkBuildTargets()
+	for target in s:MarkedBuildTargets
+		let index = index(s:BuildTargets, target)  + 1
+		exec "syntax keyword buildmenuTarget" . index . " " . target
+		exec "highlight link buildmenuTarget" . index . " Directory"
+	endfor
+endfunction
 
 " SECTION: helper functions (thanks to the author of NERDtree ;-) )
 " ============================================================================
