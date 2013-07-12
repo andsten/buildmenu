@@ -9,10 +9,28 @@ License: WTFPL, see http://sam.zoy.org/wtfpl/COPYING
 
 If you use the build-tool {Waf} http://code.google.com/p/waf, this plugin will
 assist you by providing a comfortable sidebar menu which lists all existing
-build-targets of your current project. You can select a target and start
-building by pressing <Return>. 
+build-targets of your current project. You can select one or more targets from
+the list for building. 
 
-This script is still far from being feature complete.
+This script is still quite young and far from being feature complete.
+
+==============================================================================
+USAGE                                                        *Buildmenu-usage*
+
+To toggle the sidebar build menu you should define your own |key-mapping|. See
+section |Buildmenu-mappings|. In the sidebar menu you can select (and
+unselect) one or more of the listed build-targets by pressing <Space>. The
+selected targets are marked in a different color for visualization. For each
+selection the {Waf} buildcommand for building those targets is echoed, e.g.
+looking like this: >
+    ./waf --targets=common,unittest1,unitest2
+<
+
+By default this plugin only executes the {Waf} command "./waf list" once when
+the sidebar menu is opened for the first time in the vim session. When closing
+and re-opening the menu, this command is not executed again and the list of
+build-targets stays the same. You can press 'R' (for "refresh) in the menu 
+to execute "./waf list" again.
 
 ==============================================================================
 SETUP                                                        *Buildmenu-setup*
@@ -41,6 +59,9 @@ your project or use the vim command |:cd| to change into that directory.
 An error message will be shown if one of these preconditions is not met
 and you try to open the Buildmenu.
 
+You should define your own |key-mapping| to toggle the sidebar build menu. See
+section |Buildmenu-mappings|.
+
 ==============================================================================
 WAF                                                            *Buildmenu-waf*
 
@@ -54,12 +75,13 @@ targets: >
    $ ./waf list 
 <
 
-Not all other buildsystems do provide this feature.
+Many other buildsystems do not provide a feature to list the build targets.
+
 
 ==============================================================================
 MAPPINGS                                                  *Buildmenu-mappings*
 
-To create a mapping to the command |:BuildmenuToggle| add a line like the
+To create your own |key-mapping| to toggle the Buildmenu add a line like the
 following to your |.vimrc| file: >
    map <YOURMAPPEDKEY> <Plug>BuildmenuToggle
 <
@@ -68,41 +90,73 @@ Example: Choosing to map the key <F4>: >
    map <F4> <Plug>BuildmenuToggle
 <
 
+If you did not (yet) set any mapping like that, this plugin assigns the key
+sequence "<Leader>bm" to toggle the Buildmenu. By default <Leader> maps to
+typing the backslash key '\'. You can change that by setting the variable
+|mapleader| accordingly. See |mapleader| for details.
+
+
+Mappings in the sidebar menu:
+
+<Space>       select or unselect a build-target from the list. the target
+              is highlighted in a different color to visualize your choice
+
+<Return>      start building your selected build-targets with {Waf}. The
+              resulting build command could e.g. look like this: >
+                   ./waf --targets=common,unittest1,unitest2
+<
+              If you did not select any target so far, then the resulting
+              build command will not specify any targets, which for {Waf}
+              means 'make all': >
+                   ./waf
+<
+              The build command will be added to the ex command history of
+              Vim. So you can easily execute it again by pressing ":" and 
+              the cursor up key.
+
+
 ==============================================================================
 COMMANDS                                                  *Buildmenu-commands*
 
 :BuildmenuOpen                                                *:BuildmenuOpen*
-Opens a new Buildmenu. This menu is opened as a vsplit on the right side of
-the screen. It contains a list of all build-targets of your project.
+Opens a new sidebar build menu. This menu is opened as a vsplit on the right
+side of the screen. It contains a list of all build-targets of your project.
 
 :BuildmenuClose                                              *:BuildmenuClose*
-Closes an open Buildmenu. 
+Closes an open sidebar build menu.
 
 :BuildmenuToggle                                            *:BuildmenuToggle*
-If no buildmenu is open, then this command acts identically to the
-|:BuildmenuOpen| command. If there is already an open Buildmenu, then this
-command acts identically to the |:BuildmenuClose| command.
+If no sidebar build menu is open, then this command acts identically to the
+|:BuildmenuOpen| command. If there is already an open sidebar build menu, then
+this command acts identically to the |:BuildmenuClose| command.
 
-:BuildmenuMake                                                *:BuildmenuMake*
-If you already selected a target from the Buildmenu for building, then this
-command is added to vim's history of ex-commands. It is equivalent to >
-   :mak --targets=<WHATEVERYOUSELECTED>
-<
-If you did not select anything so far, then issueing this command will merely
-execute >
-   :mak
-<
 
 ==============================================================================
 SETTINGS                                                  *Buildmenu-settings*
 
 g:BuildmenuGetTargetListCmd                        *BuildmenuGetTargetListCmd*
-shell command to obtain list of buildtargets. Default value: >
+Shell command to obtain list of buildtargets. Default value: >
     let g:BuildmenuGetTargetListCmd = &makeprg . " list"
 <
-vim option |makeprg| is expected to specify the {Waf} binary, so the resulting
+Vim option |makeprg| is expected to specify the {Waf} binary, so the resulting
 default value for the shell command should be: >
     '$ ./waf list'
+<
+
+g:BuildmenuMinWidth                                        *BuildmenuMinWidth*
+Minimum column with of the sidebar build menu. Default value is 20.
+
+g:BuildmenuMaxWidth                                        *BuildmenuMaxWidth*
+Maximum column with of the sidebar build menu. Default value is 40.
+
+The actual width will be chosen dynamically depending on the string length
+of the build-target names in the list. However it will stay within the 
+boundaries defined by g:BuildmenuMinWidth and g:BuildmenuMaxWidth
+
+g:loaded_buildmenu                                          *loaded_buildmenu*
+Setting this variable to value "1" in your |.vimrc| file will deactivate
+the build menu plugin: >
+    let g:loaded_buildmenu = 1
 <
 
 

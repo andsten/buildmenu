@@ -23,13 +23,12 @@ set cpo&vim
 " SECTION: global variables/settings
 " ============================================================================
 
-" this ist just a safe value to initialize this variable to cause no harm.
-" should not be changed
-let g:BuildmenuMakeCmd = "mak"
-
+" minimum column with of the sidebar build menu.
 let g:BuildmenuMinWidth = 20
 
-" setting
+" maximum column with of the sidebar build menu.
+let g:BuildmenuMaxWidth = 40
+
 " shell command to obtain list of buildtargets. vim option 'makeprg' is
 " expected to specify the 'waf' binary, so the resulting default value
 " should be './waf list'
@@ -39,17 +38,33 @@ let g:BuildmenuGetTargetListCmd = &makeprg . " list"
 
 " SECTION: script local variables      
 " ============================================================================
-let s:abortmsg = ". aborting buildmenu plugin."
-let s:BuildmenuWidth = g:BuildmenuMinWidth
 
+" error string
+let s:abortmsg = ". aborting buildmenu plugin."
+
+" safe initial value for this varialbe
+let s:BuildmenuMakeCmd = "mak"
+
+"for actions executed only once on first call to BuildmenuOpen()
+let s:init=0
 
 
 " SECTION: key mappings      
 " ============================================================================
-if !hasmapto(':call ListBuildTargets<CR>')
-  map <unique> <Leader>a  <Plug>BuildmenuToggle
+
+" sequence '<Plug>BuildmenuToggle' is meant for the user so he/she can create
+" a mapping to toggle this plugin. If no mapping is set, no key sequence
+" can trigger it (see :help using-<Plug> for details)
+noremap <unique> <script> <Plug>BuildmenuToggle  
+             \ :call <SID>BuildmenuToggle()<CR>
+
+" if user did not define his/her own keymapping, use: <Leader>bm
+" <Leader> by default translates to '\'. The user can set the variable
+" 'mapleader' to set a different key (see :help mapleader for details)
+if !hasmapto('<Plug>BuildmenuToggle')
+  nmap <unique> <Leader>bm  <Plug>BuildmenuToggle
 endif
-noremap <unique> <script> <Plug>BuildmenuToggle  :call <SID>BuildmenuToggle()<CR>
+
 
 
 
@@ -59,14 +74,12 @@ if !exists(":BuildmenuToggle")
   command -nargs=0  BuildmenuToggle  :call <SID>BuildmenuToggle()
   command -nargs=0  BuildmenuOpen    :call <SID>BuildmenuOpen()
   command -nargs=0  BuildmenuClose   :call <SID>BuildmenuClose()
-  command -nargs=0  BuildmenuMake    :exec g:BuildmenuMakeCmd
 endif
 
 
 
 " SECTION: functions
 " ============================================================================
-let s:init=0
 function! s:BuildmenuOpen()
 	if s:init == 0
 		let retval = s:PreChecks()
@@ -82,9 +95,7 @@ function! s:BuildmenuOpen()
 		exec "edit " . t:BuildmenuBufName
 		call append(".", s:BuildTargets)
 		normal dd
-		map <buffer> <CR> :call <SID>ExecBuildCmd()<CR>
-		map <buffer> <Space> :call <SID>MarkUnMarkBuildTarget()<CR>
-		map <buffer> R :call <SID>Refresh()<CR>
+		call s:SetLocalKeyMappings()
 		syntax case match
 		call s:SetThrowAwayBufferWinOptions()
 		if exists("s:buildlistlinepos")
@@ -95,15 +106,6 @@ function! s:BuildmenuOpen()
 	else 
 		return 0
 	endif
-endfunction
-
-function! s:Refresh()
-	normal gg^VGd
-	call s:getWafBuildList()
-	call append(".", s:BuildTargets)
-	normal dd
-	syntax clear
-	syntax case match
 endfunction
 
 function! s:BuildmenuClose()
@@ -135,6 +137,16 @@ function! s:PreChecks()
 	return 0
 endfunction
 
+function! s:Refresh()
+	normal gg^VGd
+	call s:getWafBuildList()
+	call append(".", s:BuildTargets)
+	normal dd
+	syntax clear
+	syntax case match
+endfunction
+
+
 function! s:getWafBuildList()
 	let wafoutput = system(g:BuildmenuGetTargetListCmd)
 	let s:BuildTargets = split(wafoutput)
@@ -146,6 +158,9 @@ function! s:getWafBuildList()
 			let s:BuildmenuWidth=linelen
 		endif
 	endfor
+	if s:BuildmenuWidth > g:BuildmenuMaxWidth
+		let s:BuildmenuWidth=g:BuildmenuMaxWidth
+	endif
 	let s:MarkedBuildTargets = []
 endfunction
 
@@ -156,12 +171,13 @@ function! s:ExecBuildCmd()
 	call s:AssembleBuildCmd()
 	let s:buildlistlinepos = line(".")
 	call s:BuildmenuClose()
-	call histadd(":", g:BuildmenuMakeCmd)
-	exec g:BuildmenuMakeCmd
+	call histadd(":", s:BuildmenuMakeCmd)
+	exec s:BuildmenuMakeCmd
 endfunction
 
 function! s:AssembleBuildCmd()
-	let g:BuildmenuMakeCmd = "mak " . "--targets=" . join(s:MarkedBuildTargets, ",")
+	let s:BuildmenuMakeCmd = "mak " . "--targets=" .
+				\ join(s:MarkedBuildTargets, ",")
 endfunction
 
 function! s:MarkUnMarkBuildTarget()
@@ -178,16 +194,23 @@ function! s:MarkUnMarkBuildTarget()
 		call remove(s:MarkedBuildTargets, markIndex)
 	endif
 	call s:AssembleBuildCmd()
-	echo g:BuildmenuMakeCmd
+	echo s:BuildmenuMakeCmd
 endfunction
 
 function! s:ReMarkBuildTargets()
 	for target in s:MarkedBuildTargets
-		let index = index(s:BuildTargets, target)  + 1
+		let index = index(s:BuildTargets, target) 
 		exec "syntax keyword buildmenuTarget" . index . " " . target
 		exec "highlight link buildmenuTarget" . index . " Directory"
 	endfor
 endfunction
+
+function! s:SetLocalKeyMappings()
+	map <buffer> <CR> :call <SID>ExecBuildCmd()<CR>
+	map <buffer> <Space> :call <SID>MarkUnMarkBuildTarget()<CR>
+	map <buffer> R :call <SID>Refresh()<CR>
+endfunction
+
 
 " SECTION: helper functions (thanks to the author of NERDtree ;-) )
 " ============================================================================
@@ -203,6 +226,29 @@ function! s:SetThrowAwayBufferWinOptions()
 	setlocal nofoldenable
 	setlocal nobuflisted
 	setlocal nospell
+	setlocal readonly
+
+	"if someone knows a better way to prevent getting into insert mode,
+	"please implement it
+	map <buffer> i <Nop>
+	map <buffer> I <Nop>
+	map <buffer> a <Nop>
+	map <buffer> A <Nop>
+	map <buffer> x <Nop>
+	map <buffer> X <Nop>
+	map <buffer> d <Nop>
+	map <buffer> D <Nop>
+	map <buffer> dd <Nop>
+	map <buffer> o <Nop>
+	map <buffer> O <Nop>
+	map <buffer> y <Nop>
+	map <buffer> p <Nop>
+	map <buffer> r <Nop>
+	map <buffer> s <Nop>
+	map <buffer> c <Nop>
+	map <buffer> v <Nop>
+	map <buffer> V <Nop>
+	"...
 endfunction
 
 function! s:nextBufferName()
