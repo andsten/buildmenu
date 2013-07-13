@@ -21,8 +21,9 @@ To toggle the sidebar build menu you should define your own |key-mapping|. See
 section |Buildmenu-mappings|. In the sidebar menu you can select (and
 unselect) one or more of the listed build-targets by pressing <Space>. The
 selected targets are marked in a different color for visualization. For each
-selection the {Waf} buildcommand for building those targets is echoed, e.g.
-looking like this: >
+selection the {Waf} buildcommand for building those targets is shown in a
+preview window on the top of the current tab. The build command e.g. looks lie
+this: >
     ./waf --targets=common,unittest1,unitest2
 <
 
@@ -135,7 +136,7 @@ this command acts identically to the |:BuildmenuClose| command.
 SETTINGS                                                  *Buildmenu-settings*
 
 g:BuildmenuGetTargetListCmd                        *BuildmenuGetTargetListCmd*
-Shell command to obtain list of buildtargets. Default value: >
+Sets the shell command to obtain list of buildtargets. Default value: >
     let g:BuildmenuGetTargetListCmd = &makeprg . " list"
 <
 Vim option |makeprg| is expected to specify the {Waf} binary, so the resulting
@@ -143,12 +144,21 @@ default value for the shell command should be: >
     '$ ./waf list'
 <
 
+g:BuildmenuShowBuildCmdPreview                  *BuildmenuShowBuildCmdPreview*
+On/Off switch for build command preview window on the top. By default this var
+is set to 1 which means the preview window is switched on. Set it to 0 in your
+|.vimrc| file to switch this feature off permanently. >
+    let g:BuildmenuShowBuildCmdPreview = 0
+<
+
 g:BuildmenuMinWidth                                        *BuildmenuMinWidth*
 Minimum column with of the sidebar build menu. Default value is 20.
+The actual width will be chosen dynamically depending on the string length
+of the build-target names in the list. However it will stay within the 
+boundaries defined by g:BuildmenuMinWidth and g:BuildmenuMaxWidth
 
 g:BuildmenuMaxWidth                                        *BuildmenuMaxWidth*
 Maximum column with of the sidebar build menu. Default value is 40.
-
 The actual width will be chosen dynamically depending on the string length
 of the build-target names in the list. However it will stay within the 
 boundaries defined by g:BuildmenuMinWidth and g:BuildmenuMaxWidth

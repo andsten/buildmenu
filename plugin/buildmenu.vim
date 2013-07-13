@@ -19,22 +19,31 @@ let s:save_cpo = &cpo
 set cpo&vim
 
 
-
 " SECTION: global variables/settings
 " ============================================================================
 
 " minimum column with of the sidebar build menu.
-let g:BuildmenuMinWidth = 20
+if !exists("g:BuildmenuMinWidth")
+	let g:BuildmenuMinWidth = 20
+endif
 
 " maximum column with of the sidebar build menu.
-let g:BuildmenuMaxWidth = 40
+if !exists("g:BuildmenuMaxWidth")
+	let g:BuildmenuMaxWidth = 40
+endif
 
 " shell command to obtain list of buildtargets. vim option 'makeprg' is
 " expected to specify the 'waf' binary, so the resulting default value
 " should be './waf list'
-let g:BuildmenuGetTargetListCmd = &makeprg . " list"
+if !exists("g:BuildmenuGetTargetListCmd")
+	let g:BuildmenuGetTargetListCmd = &makeprg . " list"
+endif
 
-
+" open preview window together with build menu and show build command
+" default: 1 (yes); set to 0 to switch this feature off
+if !exists("g:BuildmenuShowBuildCmdPreview")
+	let g:BuildmenuShowBuildCmdPreview = 1
+endif
 
 " SECTION: script local variables      
 " ============================================================================
@@ -87,6 +96,7 @@ function! s:BuildmenuOpen()
 			return -1
 		endif
 		call s:getWafBuildList()
+		call s:InitPreviewWindow()
 		let s:init = 1
 	endif
 	if !exists('t:BuildmenuBufName')
@@ -98,13 +108,49 @@ function! s:BuildmenuOpen()
 		call s:SetLocalKeyMappings()
 		syntax case match
 		call s:SetThrowAwayBufferWinOptions()
+		call s:PreventBuildmenuUserEdit()
 		if exists("s:buildlistlinepos")
 			call cursor(s:buildlistlinepos, 1)
 		endif
 		call s:ReMarkBuildTargets()
+		silent call s:OpenPreviewWindow()
 		return 1
 	else 
 		return 0
+	endif
+endfunction
+
+function! s:InitPreviewWindow()
+	if g:BuildmenuShowBuildCmdPreview == 1
+		let s:build_command_preview = tempname()
+		pclose
+	endif
+endfunction
+
+function! s:OpenPreviewWindow()
+	if g:BuildmenuShowBuildCmdPreview == 1
+		pclose!
+		exec "normal! \<C-w>h"
+		set previewheight=1
+		pedit s:build_command_preview
+		exec "normal! \<C-w>k"
+		call setline(".", s:BuildmenuMakeCmd)
+		exec "normal! \<C-w>j\<C-w>l"
+	endif
+endfunction
+
+function! s:ClosePreviewWindow()
+	if g:BuildmenuShowBuildCmdPreview == 1
+		pclose!
+		bdelete! s:build_command_preview
+	endif
+endfunction
+
+function! s:UpdatePreviewWindow()
+	if g:BuildmenuShowBuildCmdPreview == 1
+		exec "normal! \<C-w>h\<C-w>k"
+		call setline(".", s:BuildmenuMakeCmd)
+		exec "normal! \<C-w>j\<C-w>l"
 	endif
 endfunction
 
@@ -112,6 +158,7 @@ function! s:BuildmenuClose()
 	if exists('t:BuildmenuBufName')
 		silent! exec "bwipeout " . t:BuildmenuBufName
 		unlet! t:BuildmenuBufName
+		call s:ClosePreviewWindow()
 	endif
 endfunction
 
@@ -194,7 +241,7 @@ function! s:MarkUnMarkBuildTarget()
 		call remove(s:MarkedBuildTargets, markIndex)
 	endif
 	call s:AssembleBuildCmd()
-	echo s:BuildmenuMakeCmd
+	silent call s:UpdatePreviewWindow()
 endfunction
 
 function! s:ReMarkBuildTargets()
@@ -227,7 +274,9 @@ function! s:SetThrowAwayBufferWinOptions()
 	setlocal nobuflisted
 	setlocal nospell
 	setlocal readonly
+endfunction
 
+function! s:PreventBuildmenuUserEdit()
 	"if someone knows a better way to prevent getting into insert mode,
 	"please implement it
 	map <buffer> i <Nop>
