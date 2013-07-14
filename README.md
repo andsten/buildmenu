@@ -2,6 +2,8 @@
 
 License: WTFPL, see http://sam.zoy.org/wtfpl/COPYING
 
+See also http://www.vim.org/scripts/script.php?script_id=4659
+
 If you use the build-tool *Waf* (http://code.google.com/p/waf), this plugin will
 assist you by providing a comfortable sidebar menu which lists all existing
 build-targets of your current project. You can select one or more targets from
