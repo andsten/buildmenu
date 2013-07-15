@@ -84,6 +84,9 @@ endif
 " ============================================================================
 function! s:BuildmenuOpen()
 	call s:InitPlugin()
+	if s:init == 0
+		return
+	endif
 	if s:BuildMenuIsOpen == 0
 		call s:OpenPreviewWindow()
 		call s:OpenTargetListWindow(s:BuildmenuWidth)
@@ -93,6 +96,9 @@ endfunction
 
 function! s:BuildmenuClose()
 	call s:InitPlugin()
+	if s:init == 0
+		return
+	endif
 	if s:BuildMenuIsOpen == 1
 		call s:CloseTargetListWindow()
 		call s:ClosePreviewWindow()
@@ -102,6 +108,9 @@ endfunction
 
 function! s:BuildmenuToggle()
 	call s:InitPlugin()
+	if s:init == 0
+		return
+	endif
 	if s:BuildMenuIsOpen == 0
 		call s:OpenPreviewWindow()
 		call s:OpenTargetListWindow(s:BuildmenuWidth)
@@ -119,12 +128,12 @@ endfunction
 
 function! s:InitPlugin()
 	if s:init == 0
-		let retval = s:PreChecks()
-		if retval != 0
+		if s:PreChecks() != 0
 			return -1
 		endif
 		call s:GetWafTargetList()
 		let s:init = 1
+		return 0
 	endif
 endfunction
 
