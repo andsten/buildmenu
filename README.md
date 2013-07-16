@@ -17,6 +17,9 @@ Planned features for future versions:
 - quick-help in the style of NERDTree (when pressing *?*)
 - support of other build systems like *SCons* and *GNU Make* (if feasible)
 
+
+See [Wiki](https://github.com/shirai07/buildmenu/wiki) for a screenshot of the Buildmenu plugin.
+
 ## Waf ##
 So far this plugin merely works with the *Waf* buildsystem
 http://code.google.com/p/waf. 
