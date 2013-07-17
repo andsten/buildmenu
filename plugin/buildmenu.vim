@@ -239,10 +239,14 @@ function! s:PreChecks()
 endfunction
 
 function! s:RefreshBuildTargetList()
+	call s:UnSelectUnMarkAllBuildTargets()
 	normal gg^VGd
 	call s:GetWafTargetList()
 	call append(".", s:BuildTargets)
 	normal dd
+	normal gg
+	call s:AssembleBuildCmd()
+	silent call s:UpdatePreviewWindow()
 	syntax clear
 	syntax case match
 endfunction
@@ -305,6 +309,16 @@ function! s:ReMarkBuildTargets()
 	endfor
 endfunction
 
+function! s:UnSelectUnMarkAllBuildTargets()
+	for target in s:MarkedBuildTargets
+		let index = index(s:BuildTargets, target) 
+		let markIndex = index(s:MarkedBuildTargets, target)
+		exec "highlight link buildmenuTarget" . index . " NONE"
+		exec "syntax clear buildmenuTarget" . index
+		call remove(s:MarkedBuildTargets, markIndex)
+	endfor
+endfunction
+
 function! s:SetTargetListWindowKeyMappings()
 	map <buffer> <CR> :call <SID>ExecBuildCmd()<CR>
 	map <buffer> <Space> :call <SID>MarkUnMarkBuildTarget()<CR>
@@ -327,7 +341,7 @@ function! s:SetTargetListWinOptions()
 	setlocal nofoldenable
 	setlocal nobuflisted
 	setlocal nospell
-	setlocal readonly
+	"setlocal readonly
 endfunction
 
 function! s:SetPreviewWinOptions()
@@ -342,7 +356,7 @@ function! s:SetPreviewWinOptions()
 	setlocal nofoldenable
 	setlocal nobuflisted
 	setlocal nospell
-	setlocal readonly
+	"setlocal readonly
 endfunction
 
 function! s:SetUnEditable()
