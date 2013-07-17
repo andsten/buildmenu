@@ -4,10 +4,12 @@ License: WTFPL, see http://sam.zoy.org/wtfpl/COPYING
 
 See also http://www.vim.org/scripts/script.php?script_id=4659
 
-If you use the build-tool *Waf* (http://code.google.com/p/waf), this plugin will
+If you use the build-system [Waf](http://code.google.com/p/waf), this plugin will
 assist you by providing a comfortable sidebar menu which lists all existing
 build-targets of your current project. You can select one or more targets from
 the list for building. 
+
+See [Wiki](https://github.com/shirai07/buildmenu/wiki) for a screenshot of the Buildmenu plugin.
 
 This script is still quite young and far from being feature complete.
 
@@ -18,35 +20,36 @@ Planned features for future versions:
 - support of other build systems like *SCons* and *GNU Make* (if feasible)
 
 
-See [Wiki](https://github.com/shirai07/buildmenu/wiki) for a screenshot of the Buildmenu plugin.
-
 ## Waf ##
-So far this plugin merely works with the *Waf* buildsystem
-http://code.google.com/p/waf. 
+So far this plugin merely works with the [Waf](http://code.google.com/p/waf) build-system. 
 
 With *Waf* it is very easy for this plugin to provide a list of build-targets,
-because this build system provides a command line argument to list all
+because this build-system provides a command line argument to list all
 targets:
 
     $ ./waf list 
 
-Not all other buildsystems do provide this feature.
+It seems most other buildsystems do provide a feature like that.
 
 ## Usage ##
-To toggle the sidebar build menu you should define your own key-mapping. See
+To toggle the sidebar build menu (see [screenshot](https://github.com/shirai07/buildmenu/wiki))
+you should define your own key-mapping. See
 section "Mappings". In the sidebar menu you can select (and
-unselect) one or more of the listed build-targets by pressing *Space*. The
+unselect) one or more of the listed build-targets by pressing **Space**. The
 selected targets are marked in a different color for visualization. For each
 selection the *Waf* buildcommand for building those targets is shown in a
-preview window on the top of the current tab. The build command e.g. looks lie
+preview window on the top of the current tab. The build command e.g. looks like
 this:
 
     ./waf --targets=common,unittest1,unitest2
      
+To start building the selected targets, just hit **Enter** while your cursor has
+focus on the buildmenu target list.
+
 By default this plugin only executes the *Waf* command "./waf list" once when
 the sidebar menu is opened for the first time in the vim session. When closing
 and re-opening the menu, this command is not executed again and the list of
-build-targets stays the same. You can press 'R' (for "refresh") in the menu 
+build-targets stays the same. You can press **'R'** (for "refresh") in the menu 
 to execute "./waf list" again.
 
 ## Setup ##
@@ -70,7 +73,7 @@ To index the vim internal help page of the plugin buildmenu, enter this command 
 ### Waf dependencies ###
 Preconditions that must be met for Buildmenu to work properly:
 
-The *Waf* binary must be installed on the system. 
+The *Waf* binary must exist on your system. 
 
 The vim option *makeprg* must specify this *Waf* binary. To do that place a
 line like the following one in your *.vimrc* file:
@@ -103,7 +106,7 @@ Example: Choosing to map the key *F4*:
     map <F4> <Plug>BuildmenuToggle
 
 If you did not (yet) set any mapping like that, this plugin assigns the key
-sequence "<Leader>bm" to toggle the Buildmenu. By default <Leader> maps to
+sequence "<Leader>bm" to toggle the Buildmenu. By default *Leader* maps to
 typing the backslash key '\'. You can change that by setting the variable
 *mapleader* accordingly. See vim help for details.
 
@@ -113,7 +116,7 @@ Mappings in the sidebar menu:
 select or unselect a build-target from the list. the target
 is highlighted in a different color to visualize your choice
 
-#### Return ####
+#### Return/Enter ####
 start building your selected build-targets with *Waf*. The
 resulting build command could e.g. look like this:
 
