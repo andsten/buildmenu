@@ -30,7 +30,7 @@ this: >
 By default this plugin only executes the {Waf} command "./waf list" once when
 the sidebar menu is opened for the first time in the vim session. When closing
 and re-opening the menu, this command is not executed again and the list of
-build-targets stays the same. You can press 'R' (for "refresh) in the menu 
+build-targets stays the same. You can press 'R' (for "refresh") in the menu 
 to execute "./waf list" again.
 
 ==============================================================================

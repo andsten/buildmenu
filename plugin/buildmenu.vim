@@ -52,16 +52,19 @@ if !exists("g:BuildmenuGetTargetListCmd")
 endif
 
 " SECTION: script local variables      
-call s:initVariable("s:abortmsg", ". aborting buildmenu plugin.")
+call s:initVariable("s:warnmsg", " Plugin 'buildmenu' will probably not work correctly!")
+call s:initVariable("s:abortmsg", " Aborting buildmenu plugin.")
 call s:initVariable("s:BuildmenuMakeCmd", "mak")
 
 let s:buildMenu = {}
 let s:buildMenu.targets = []
+let s:buildMenu.markedTargets = []
 call s:initVariable("s:buildMenu.isInitialized", 0)
 call s:initVariable("s:buildMenu.isOpen", 0)
 
 let s:listWindow = {}
 call s:initVariable("s:listWindow.width", g:BuildmenuMinWidth)
+call s:initVariable("s:listWindow.lineOffset", 0)
 
 let s:previewWindow = {}
 
@@ -104,17 +107,14 @@ endfunction
 " SECTION: wrapper functions for key-mapping access
 " ============================================================================
 
-" wrapper to make function accessable for a key-mapping
 function! s:BuildmenuOpen()
 	call s:buildMenu.Open()
 endfunction
 
-" wrapper to make function accessable for a key-mapping
 function! s:BuildmenuClose()
 	call s:buildMenu.Close()
 endfunction
 
-" wrapper to make function accessable for a key-mapping
 function! s:BuildmenuToggle()
 	call s:buildMenu.Toggle()
 endfunction
@@ -167,13 +167,14 @@ function! s:buildMenu.Toggle() dict
 endfunction
 
 
-" SECTION: dictionary s:buildMenu  init methods
+" SECTION: dictionary s:buildMenu  private methods
 " ============================================================================
 
 function! s:buildMenu.Init() dict
 	if self.isInitialized == 0
 		call self.RunPreChecks()
-		call self.GetWafTargetList()
+		call self.GetBuildTargetList()
+		call self.GetBuildSystemVersionNumber()
 		call s:listWindow.CalculateOptimalWidth(self.targets)
 		let self.isInitialized = 1
 	endif
@@ -184,26 +185,20 @@ function! s:buildMenu.RunPreChecks() dict
 		echoe "g:BuildmenuPosition contains illegal value! set it to 'left' or to 'right'"
 	endif
 
-	if match(&makeprg, "waf", strlen(&makeprg)-strlen("waf")) == -1
-		echoe printf("vim option 'makeprg' does not specify 'waf' binary (current value='%s')", &makeprg) . s:abortmsg
+	if !filereadable(&makeprg)
+		echoe = "error: binary specified in 'makeprg' not found (" . &makeprg . ")." . s:abortmsg
 	endif
 
-	if !filereadable(&makeprg)
-		echoe = "error: binary specified in 'makeprg' not found (" . &makeprg . "). " . s:abortmsg
+	if match(&makeprg, "waf", strlen(&makeprg)-strlen("waf")) == -1
+		echo printf("warning: vim option 'makeprg' does not specify 'waf' binary (current value='%s')", &makeprg) . "." . s:warnmsg
 	endif
 
 	if !filereadable("wscript") 
-		echo "warning: file 'wscript' not found in current working directory (" . getcwd() . ")"
+		echo "warning: file 'wscript' not found in current working directory (" . getcwd() . ")." . s:warnmsg
 	endif
-
-	"detect Waf version
-	let wafversioncmd = &makeprg . " --version"
-	let wafoutput = system(wafversioncmd)
-	let outputlist = split(wafoutput)
-	let s:buildMenu.buildSysVersion = outputlist[1]
 endfunction
 
-function! s:buildMenu.GetWafTargetList() dict
+function! s:buildMenu.GetBuildTargetList() dict
 	let wafoutput = system(g:BuildmenuGetTargetListCmd)
 	
 	"stop if not yet configured
@@ -219,8 +214,16 @@ function! s:buildMenu.GetWafTargetList() dict
 		call remove(self.targets, idx, -1)
 	endif
 
-	let s:MarkedBuildTargets = []
+	let self.markedTargets = []
 endfunction
+
+function s:buildMenu.GetBuildSystemVersionNumber() dict
+	let wafversioncmd = &makeprg . " --version"
+	let wafoutput = system(wafversioncmd)
+	let outputlist = split(wafoutput)
+	let self.buildSysVersion = outputlist[1]
+endfunction
+
 
 
 " SECTION: dictionary s:listWindow
@@ -236,8 +239,13 @@ function! s:listWindow.Open() dict
 		endif
 		exec winPos . " vertical " . self.width . " new"
 		exec "edit " . t:BuildmenuTargetListBufName
-		call append(".", s:buildMenu.targets)
-		normal dd
+		call self.SetHeaderLineHighlightning()
+		call setline(1, self.AssembleHeaderLine("Waf v" . s:buildMenu.buildSysVersion))
+		call setline(2, "configure")
+		call setline(3, "build")
+		call setline(4, self.AssembleHeaderLine("Build-Targets (". len(s:buildMenu.targets) . ")"))
+		call append(4, s:buildMenu.targets)
+		let self.lineOffset=4
 		call self.GotoLastSavedLinePos()
 		call self.SetKeyMappings()
 		call self.SetOptions()
@@ -251,6 +259,32 @@ function! s:listWindow.Close() dict
 		silent! exec "bwipeout " . t:BuildmenuTargetListBufName
 		unlet! t:BuildmenuTargetListBufName
 	endif
+endfunction
+
+function! s:listWindow.AssembleHeaderLine(text) dict
+	let header = a:text
+	if strlen(header) > (self.width-2)
+		let header = strpart(header, 0, self.width-2)
+	elseif strlen(header) < (self.width-2)
+		let header = header . repeat(" ", self.width-strlen(header)-2)
+	endif
+	let header = "[" . header . "]"
+	return header
+endfunction
+
+function! s:listWindow.SetHeaderLineHighlightning() dict
+	syntax region buildmenuHeader start="^\s*\[" end="\]"
+	highlight link buildmenuHeader StatusLine
+endfunction
+
+function! s:listWindow.MarkTargetLine(index, target) dict
+	exec "syntax keyword buildmenuTarget" . a:index . " " . a:target
+	exec "highlight link buildmenuTarget" . a:index . " Question"
+endfunction
+
+function! s:listWindow.UnMarkTargetLine(index) dict
+	exec "highlight link buildmenuTarget" . a:index . " NONE"
+	exec "syntax clear buildmenuTarget" . a:index
 endfunction
 
 function! s:listWindow.CalculateOptimalWidth(targets) dict
@@ -279,6 +313,7 @@ function! s:listWindow.SetOptions() dict
 	setlocal nobuflisted
 	setlocal nospell
 	"setlocal readonly
+	setlocal iskeyword+=.
 endfunction
 
 function! s:listWindow.SetKeyMappings() dict
@@ -396,7 +431,7 @@ endfunction
 function! s:RefreshBuildTargetList()
 	call s:UnSelectUnMarkAllBuildTargets()
 	normal gg^VGd
-	call s:buildMenu.GetWafTargetList()
+	call s:buildMenu.GetBuildTargetList()
 	call s:listWindow.CalculateOptimalWidth(s:buildMenu.targets)
 	call append(".", s:buildMenu.targets)
 	normal dd
@@ -408,7 +443,7 @@ function! s:RefreshBuildTargetList()
 endfunction
 
 function! s:ExecBuildCmd()
-	if len(s:MarkedBuildTargets) == 0
+	if len(s:buildMenu.markedTargets) == 0
 		call s:MarkUnMarkBuildTarget()
 	endif
 	call s:AssembleBuildCmd()
@@ -420,41 +455,40 @@ endfunction
 
 function! s:AssembleBuildCmd()
 	let s:BuildmenuMakeCmd = "mak " . "--targets=" .
-				\ join(s:MarkedBuildTargets, ",")
+				\ join(s:buildMenu.markedTargets, ",")
 endfunction
 
 function! s:MarkUnMarkBuildTarget()
-	let index = line(".")-1
-	let target = get(s:buildMenu.targets, index)
-	let markIndex = index(s:MarkedBuildTargets, target)
-	if markIndex < 0
-		call add(s:MarkedBuildTargets, target)
-		exec "syntax keyword buildmenuTarget" . index . " " . target
-		exec "highlight link buildmenuTarget" . index . " Directory"
-	else
-		exec "highlight link buildmenuTarget" . index . " NONE"
-		exec "syntax clear buildmenuTarget" . index
-		call remove(s:MarkedBuildTargets, markIndex)
+	if line(".") > s:listWindow.lineOffset
+		let index = line(".")-1-s:listWindow.lineOffset
+		let target = get(s:buildMenu.targets, index)
+		let markIndex = index(s:buildMenu.markedTargets, target)
+		echo markIndex
+		if markIndex < 0
+			call add(s:buildMenu.markedTargets, target)
+			call s:listWindow.MarkTargetLine(index, target)
+		else
+			call s:listWindow.UnMarkTargetLine(index)
+			call remove(s:buildMenu.markedTargets, markIndex)
+		endif
+		call s:AssembleBuildCmd()
+		silent call s:previewWindow.Update()
 	endif
-	call s:AssembleBuildCmd()
-	silent call s:previewWindow.Update()
 endfunction
 
 function! s:ReMarkBuildTargets()
-	for target in s:MarkedBuildTargets
+	for target in s:buildMenu.markedTargets
 		let index = index(s:buildMenu.targets, target) 
-		exec "syntax keyword buildmenuTarget" . index . " " . target
-		exec "highlight link buildmenuTarget" . index . " Directory"
+		call s:listWindow.MarkTargetLine(index, target)
 	endfor
 endfunction
 
 function! s:UnSelectUnMarkAllBuildTargets()
-	for target in s:MarkedBuildTargets
+	for target in s:buildMenu.markedTargets
 		let index = index(s:buildMenu.targets, target) 
-		let markIndex = index(s:MarkedBuildTargets, target)
-		exec "highlight link buildmenuTarget" . index . " NONE"
-		exec "syntax clear buildmenuTarget" . index
-		call remove(s:MarkedBuildTargets, markIndex)
+		let markIndex = index(s:buildMenu.markedTargets, target)
+		call s:listWindow.UnMarkTargetLine(index)
+		call remove(s:buildMenu.markedTargets, markIndex)
 	endfor
 endfunction
 
