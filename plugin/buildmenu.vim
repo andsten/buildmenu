@@ -6,6 +6,7 @@
 "              it and/or modify it under the terms of the Do What The Fuck You
 "              Want To Public License, Version 2, as published by Sam Hocevar.
 "              See http://sam.zoy.org/wtfpl/COPYING for more details.
+" Version:     unstable deverloper version 0.1<v<0.2
 "
 " I took several code snippets and ideas from other vim plugins like e.g.
 " NERDtree, fugitive ... Hereby a warm 'thank you' to the authors of those
@@ -53,16 +54,24 @@ endif
 " SECTION: script local variables      
 call s:initVariable("s:abortmsg", ". aborting buildmenu plugin.")
 call s:initVariable("s:BuildmenuMakeCmd", "mak")
-call s:initVariable("s:init", 0)
-call s:initVariable("s:BuildMenuIsOpen", 0)
-let s:BuildMenuIsOpen = 0
+
+let s:buildMenu = {}
+let s:buildMenu.targets = []
+call s:initVariable("s:buildMenu.isInitialized", 0)
+call s:initVariable("s:buildMenu.isOpen", 0)
+
+let s:listWindow = {}
+call s:initVariable("s:listWindow.width", g:BuildmenuMinWidth)
+
+let s:previewWindow = {}
+
 
 " SECTION: key mappings      
 " sequence '<Plug>BuildmenuToggle' is meant for the user so he/she can create
 " a mapping to toggle this plugin. If no mapping is set, no key sequence
 " can trigger it (see :help using-<Plug> for details)
 noremap <unique> <script> <Plug>BuildmenuToggle  
-             \ :call <SID>BuildmenuToggle()<CR>
+             \ :exec <SID>BuildmenuToggle()<CR>
 
 " if user did not define his/her own keymapping, use: <Leader>bm
 " <Leader> by default translates to '\'. The user can set the variable
@@ -74,70 +83,150 @@ endif
 " SECTION: user commands      
 if !exists(":BuildmenuToggle")
   command -nargs=0  BuildmenuToggle  :call <SID>BuildmenuToggle()
+endif
+if !exists(":BuildmenuOpen")
   command -nargs=0  BuildmenuOpen    :call <SID>BuildmenuOpen()
+endif
+if !exists(":BuildmenuClose")
   command -nargs=0  BuildmenuClose   :call <SID>BuildmenuClose()
 endif
 
 
 
-" SECTION: top level functions
+" SECTION: debugging utils
 " ============================================================================
+
+function! g:BuildmenuDebug()
+	echo s:buildMenu
+endfunction
+
+
+" SECTION: wrapper functions for key-mapping access
+" ============================================================================
+
+" wrapper to make function accessable for a key-mapping
 function! s:BuildmenuOpen()
-	call s:InitPlugin()
-	if s:init == 0
-		return
-	endif
-	if s:BuildMenuIsOpen == 0
-		call s:OpenPreviewWindow()
-		call s:OpenTargetListWindow(s:BuildmenuWidth)
-		let s:BuildMenuIsOpen = 1
-	endif
+	call s:buildMenu.Open()
 endfunction
 
+" wrapper to make function accessable for a key-mapping
 function! s:BuildmenuClose()
-	call s:InitPlugin()
-	if s:init == 0
-		return
-	endif
-	if s:BuildMenuIsOpen == 1
-		call s:CloseTargetListWindow()
-		call s:ClosePreviewWindow()
-		let s:BuildMenuIsOpen = 0
-	endif
+	call s:buildMenu.Close()
 endfunction
 
+" wrapper to make function accessable for a key-mapping
 function! s:BuildmenuToggle()
-	call s:InitPlugin()
-	if s:init == 0
-		return
-	endif
-	if s:BuildMenuIsOpen == 0
-		call s:OpenPreviewWindow()
-		call s:OpenTargetListWindow(s:BuildmenuWidth)
-		let s:BuildMenuIsOpen = 1
-	else
-		call s:CloseTargetListWindow()
-		call s:ClosePreviewWindow()
-		let s:BuildMenuIsOpen = 0
-	endif
+	call s:buildMenu.Toggle()
 endfunction
 
 
-" SECTION: internal functions
+" SECTION: dictionary s:buildMenu  public methods    
 " ============================================================================
 
-function! s:InitPlugin()
-	if s:init == 0
-		if s:PreChecks() != 0
-			return -1
+function! s:buildMenu.Open() dict
+	try
+		call self.Init()
+		if self.isOpen == 0
+			call s:previewWindow.Open()
+			call s:listWindow.Open()
+			let self.isOpen = 1
 		endif
-		call s:GetWafTargetList()
-		let s:init = 1
-		return 0
+	catch /.*/
+		echoe v:exception
+	endtry
+endfunction
+
+function! s:buildMenu.Close() dict
+	try
+		call self.Init()
+		if self.isOpen == 1
+			call s:listWindow.Close()
+			call s:previewWindow.Close()
+			let self.isOpen = 0
+		endif
+	catch /.*/
+		echoe v:exception
+	endtry
+endfunction
+
+function! s:buildMenu.Toggle() dict
+	try
+		call self.Init()
+		if self.isOpen == 0
+			call s:previewWindow.Open()
+			call s:listWindow.Open()
+			let self.isOpen = 1
+		else
+			call s:listWindow.Close()
+			call s:previewWindow.Close()
+			let self.isOpen = 0
+		endif
+	catch /.*/
+		echoe v:exception
+	endtry
+endfunction
+
+
+" SECTION: dictionary s:buildMenu  init methods
+" ============================================================================
+
+function! s:buildMenu.Init() dict
+	if self.isInitialized == 0
+		call self.RunPreChecks()
+		call self.GetWafTargetList()
+		call s:listWindow.CalculateOptimalWidth(self.targets)
+		let self.isInitialized = 1
 	endif
 endfunction
 
-function! s:OpenTargetListWindow(width)
+function! s:buildMenu.RunPreChecks() dict
+	if g:BuildmenuPosition != "right" && g:BuildmenuPosition != "left"
+		echoe "g:BuildmenuPosition contains illegal value! set it to 'left' or to 'right'"
+	endif
+
+	if match(&makeprg, "waf", strlen(&makeprg)-strlen("waf")) == -1
+		echoe printf("vim option 'makeprg' does not specify 'waf' binary (current value='%s')", &makeprg) . s:abortmsg
+	endif
+
+	if !filereadable(&makeprg)
+		echoe = "error: binary specified in 'makeprg' not found (" . &makeprg . "). " . s:abortmsg
+	endif
+
+	if !filereadable("wscript") 
+		echo "warning: file 'wscript' not found in current working directory (" . getcwd() . ")"
+	endif
+
+	"detect Waf version
+	let wafversioncmd = &makeprg . " --version"
+	let wafoutput = system(wafversioncmd)
+	let outputlist = split(wafoutput)
+	let s:buildMenu.buildSysVersion = outputlist[1]
+endfunction
+
+function! s:buildMenu.GetWafTargetList() dict
+	let wafoutput = system(g:BuildmenuGetTargetListCmd)
+	
+	"stop if not yet configured
+	if match(wafoutput, "project was not configured") != -1
+		echoe "The Waf project was not configured: run 'waf configure' first!"
+	endif
+
+	let self.targets = split(wafoutput)
+
+	"remove waf ouput which is not part of target list
+	let idx = match(self.targets, "'list'") 
+	if idx != -1
+		call remove(self.targets, idx, -1)
+	endif
+
+	let s:MarkedBuildTargets = []
+endfunction
+
+
+" SECTION: dictionary s:listWindow
+" ============================================================================
+
+function! s:listWindow.Open() dict
 	if !exists('t:BuildmenuTargetListBufName')
 		let t:BuildmenuTargetListBufName = s:NextBufferName()
 		if g:BuildmenuPosition == "left"
@@ -145,191 +234,39 @@ function! s:OpenTargetListWindow(width)
 		else
 			let winPos = "botright"
 		endif
-		exec winPos . " vertical " . a:width . " new"
+		exec winPos . " vertical " . self.width . " new"
 		exec "edit " . t:BuildmenuTargetListBufName
-		call append(".", s:BuildTargets)
+		call append(".", s:buildMenu.targets)
 		normal dd
-		call s:SetTargetListWindowKeyMappings()
-		call s:SetTargetListWinOptions()
-		call s:SetUnEditable()
-		call s:GotoLastSavedLinePos()
+		call self.GotoLastSavedLinePos()
+		call self.SetKeyMappings()
+		call self.SetOptions()
+		call self.SetUnEditable()
 		call s:ReMarkBuildTargets()
 	endif
 endfunction
 
-function! s:CloseTargetListWindow()
+function! s:listWindow.Close() dict
 	if exists('t:BuildmenuTargetListBufName')
 		silent! exec "bwipeout " . t:BuildmenuTargetListBufName
 		unlet! t:BuildmenuTargetListBufName
 	endif
 endfunction
 
-function! s:OpenPreviewWindow()
-	if g:BuildmenuShowBuildCmdPreview == 1
-		if !exists('t:BuildmenuPreviewBufName')
-			let t:BuildmenuPreviewBufName = s:NextBufferName()
-			exec "topleft 1 new"
-			exec "edit " . t:BuildmenuPreviewBufName
-			call append(".", s:BuildmenuMakeCmd)
-			normal dd
-			call s:ResizePrevWinHeightToFit()
-			call s:SetPreviewWinOptions()
-		endif
-	endif
-endfunction
-
-function! s:ClosePreviewWindow()
-	if g:BuildmenuShowBuildCmdPreview == 1
-		if exists('t:BuildmenuPreviewBufName')
-			silent! exec "bwipeout " . t:BuildmenuPreviewBufName
-			unlet! t:BuildmenuPreviewBufName
-		endif
-	endif
-endfunction
-
-function! s:UpdatePreviewWindow()
-	if g:BuildmenuShowBuildCmdPreview == 1
-		if exists('t:BuildmenuPreviewBufName')
-			if g:BuildmenuPosition == "left"
-				exec "normal! \<C-w>l\<C-w>k"
-			else
-				exec "normal! \<C-w>h\<C-w>k"
-			endif
-			normal ggdG
-			call append(".", s:BuildmenuMakeCmd)
-			normal dd
-			call s:ResizePrevWinHeightToFit()
-			if g:BuildmenuPosition == "left"
-				exec "normal! \<C-w>h"
-			else
-				exec "normal! \<C-w>l"
-			endif
-		endif
-	endif
-endfunction
-
-function! s:ResizePrevWinHeightToFit()
-	let height = float2nr(ceil(strlen(s:BuildmenuMakeCmd) / winwidth(0))) + 1
-	exec "resize " . height
-endfunction
-
-function! s:GotoLastSavedLinePos()
-	if exists("s:buildlistlinepos")
-		call cursor(s:buildlistlinepos, 1)
-	endif
-endfunction
-
-function! s:PreChecks()
-	if g:BuildmenuPosition != "right" && g:BuildmenuPosition != "left"
-		echoe "error: g:BuildmenuPosition contains illegal value! set it to 'left' or to 'right'"
-		return 1
-	endif
-	if match(&makeprg, "waf", strlen(&makeprg)-strlen("waf")) == -1
-		echoe printf("error: vim option 'makeprg' does not specify 'waf' binary (current value='%s')", &makeprg) . s:abortmsg
-		return 1
-	endif
-	if !filereadable(&makeprg)
-		echoe "binary specified in 'makeprg' not found (" . &makeprg . "). " . s:abortmsg
-		return 1
-	endif
-	if !filereadable("wscript") 
-		echoe "warning: file 'wscript' not found in current working directory (" . getcwd() . ")"
-	endif
-	return 0
-endfunction
-
-function! s:RefreshBuildTargetList()
-	call s:UnSelectUnMarkAllBuildTargets()
-	normal gg^VGd
-	call s:GetWafTargetList()
-	call append(".", s:BuildTargets)
-	normal dd
-	normal gg
-	call s:AssembleBuildCmd()
-	silent call s:UpdatePreviewWindow()
-	syntax clear
-	syntax case match
-endfunction
-
-function! s:GetWafTargetList()
-	let wafoutput = system(g:BuildmenuGetTargetListCmd)
-	let s:BuildTargets = split(wafoutput)
-	call remove(s:BuildTargets, -4, -1)
-	let s:BuildmenuWidth = g:BuildmenuMinWidth
-	for n in s:BuildTargets
+function! s:listWindow.CalculateOptimalWidth(targets) dict
+	let s:listWindow.width = g:BuildmenuMinWidth
+	for n in a:targets
 		let linelen = strlen(n)
-		if linelen > s:BuildmenuWidth
-			let s:BuildmenuWidth=linelen
+		if linelen > s:listWindow.width
+			let s:listWindow.width=linelen
 		endif
 	endfor
-	if s:BuildmenuWidth > g:BuildmenuMaxWidth
-		let s:BuildmenuWidth=g:BuildmenuMaxWidth
+	if s:listWindow.width > g:BuildmenuMaxWidth
+		let s:listWindow.width=g:BuildmenuMaxWidth
 	endif
-	let s:MarkedBuildTargets = []
 endfunction
 
-function! s:ExecBuildCmd()
-	if len(s:MarkedBuildTargets) == 0
-		call s:MarkUnMarkBuildTarget()
-	endif
-	call s:AssembleBuildCmd()
-	let s:buildlistlinepos = line(".")
-	call s:BuildmenuClose()
-	call histadd(":", s:BuildmenuMakeCmd)
-	exec s:BuildmenuMakeCmd
-endfunction
-
-function! s:AssembleBuildCmd()
-	let s:BuildmenuMakeCmd = "mak " . "--targets=" .
-				\ join(s:MarkedBuildTargets, ",")
-endfunction
-
-function! s:MarkUnMarkBuildTarget()
-	let index = line(".")-1
-	let target = get(s:BuildTargets, index)
-	let markIndex = index(s:MarkedBuildTargets, target)
-	if markIndex < 0
-		call add(s:MarkedBuildTargets, target)
-		exec "syntax keyword buildmenuTarget" . index . " " . target
-		exec "highlight link buildmenuTarget" . index . " Directory"
-	else
-		exec "highlight link buildmenuTarget" . index . " NONE"
-		exec "syntax clear buildmenuTarget" . index
-		call remove(s:MarkedBuildTargets, markIndex)
-	endif
-	call s:AssembleBuildCmd()
-	silent call s:UpdatePreviewWindow()
-endfunction
-
-function! s:ReMarkBuildTargets()
-	for target in s:MarkedBuildTargets
-		let index = index(s:BuildTargets, target) 
-		exec "syntax keyword buildmenuTarget" . index . " " . target
-		exec "highlight link buildmenuTarget" . index . " Directory"
-	endfor
-endfunction
-
-function! s:UnSelectUnMarkAllBuildTargets()
-	for target in s:MarkedBuildTargets
-		let index = index(s:BuildTargets, target) 
-		let markIndex = index(s:MarkedBuildTargets, target)
-		exec "highlight link buildmenuTarget" . index . " NONE"
-		exec "syntax clear buildmenuTarget" . index
-		call remove(s:MarkedBuildTargets, markIndex)
-	endfor
-endfunction
-
-function! s:SetTargetListWindowKeyMappings()
-	map <buffer> <CR> :call <SID>ExecBuildCmd()<CR>
-	map <buffer> <Space> :call <SID>MarkUnMarkBuildTarget()<CR>
-	map <buffer> R :call <SID>RefreshBuildTargetList()<CR>
-endfunction
-
-
-" SECTION: helper functions (thanks to the author of NERDtree ;-) )
-" ============================================================================
-"
-function! s:SetTargetListWinOptions()
+function! s:listWindow.SetOptions() dict
 	syntax case match
    	setlocal winfixwidth
 	setlocal noswapfile
@@ -344,22 +281,13 @@ function! s:SetTargetListWinOptions()
 	"setlocal readonly
 endfunction
 
-function! s:SetPreviewWinOptions()
-	syntax case match
-   	setlocal winfixwidth
-	setlocal noswapfile
-	setlocal buftype=nofile
-	setlocal bufhidden=wipe
-	setlocal wrap
-	setlocal foldcolumn=0
-	setlocal foldmethod=manual
-	setlocal nofoldenable
-	setlocal nobuflisted
-	setlocal nospell
-	"setlocal readonly
+function! s:listWindow.SetKeyMappings() dict
+	map <buffer> <CR> :call <SID>ExecBuildCmd()<CR>
+	map <buffer> <Space> :call <SID>MarkUnMarkBuildTarget()<CR>
+	map <buffer> R :call <SID>RefreshBuildTargetList()<CR>
 endfunction
 
-function! s:SetUnEditable()
+function! s:listWindow.SetUnEditable() dict
 	"if someone knows a better way to prevent getting into insert mode,
 	"please implement it
 	map <buffer> i <Nop>
@@ -382,6 +310,157 @@ function! s:SetUnEditable()
 	map <buffer> V <Nop>
 	"...
 endfunction
+
+function! s:listWindow.GotoLastSavedLinePos() dict
+	if exists("self.linepos")
+		call cursor(self.linepos, 1)
+	endif
+endfunction
+
+
+
+
+
+" SECTION: dictionary s:previewWindow
+" ============================================================================
+
+function! s:previewWindow.Open() dict
+	if g:BuildmenuShowBuildCmdPreview == 1
+		if !exists('t:BuildmenuPreviewBufName')
+			let t:BuildmenuPreviewBufName = s:NextBufferName()
+			exec "topleft 1 new"
+			exec "edit " . t:BuildmenuPreviewBufName
+			call append(".", s:BuildmenuMakeCmd)
+			normal dd
+			call self.ResizeHeightToFit()
+			call self.SetOptions()
+		endif
+	endif
+endfunction
+
+function! s:previewWindow.Close() dict
+	if g:BuildmenuShowBuildCmdPreview == 1
+		if exists('t:BuildmenuPreviewBufName')
+			silent! exec "bwipeout " . t:BuildmenuPreviewBufName
+			unlet! t:BuildmenuPreviewBufName
+		endif
+	endif
+endfunction
+
+function! s:previewWindow.Update() dict
+	if g:BuildmenuShowBuildCmdPreview == 1
+		if exists('t:BuildmenuPreviewBufName')
+			if g:BuildmenuPosition == "left"
+				exec "normal! \<C-w>l\<C-w>k"
+			else
+				exec "normal! \<C-w>h\<C-w>k"
+			endif
+			normal ggdG
+			call append(".", s:BuildmenuMakeCmd)
+			normal dd
+			call self.ResizeHeightToFit()
+			if g:BuildmenuPosition == "left"
+				exec "normal! \<C-w>h"
+			else
+				exec "normal! \<C-w>l"
+			endif
+		endif
+	endif
+endfunction
+
+function! s:previewWindow.ResizeHeightToFit() dict
+	let height = float2nr(ceil(strlen(s:BuildmenuMakeCmd) / winwidth(0))) + 1
+	exec "resize " . height
+endfunction
+
+function! s:previewWindow.SetOptions() dict
+	syntax case match
+   	setlocal winfixwidth
+	setlocal noswapfile
+	setlocal buftype=nofile
+	setlocal bufhidden=wipe
+	setlocal wrap
+	setlocal foldcolumn=0
+	setlocal foldmethod=manual
+	setlocal nofoldenable
+	setlocal nobuflisted
+	setlocal nospell
+	"setlocal readonly
+endfunction
+
+
+
+" SECTION: 
+" ============================================================================
+
+function! s:RefreshBuildTargetList()
+	call s:UnSelectUnMarkAllBuildTargets()
+	normal gg^VGd
+	call s:buildMenu.GetWafTargetList()
+	call s:listWindow.CalculateOptimalWidth(s:buildMenu.targets)
+	call append(".", s:buildMenu.targets)
+	normal dd
+	normal gg
+	call s:AssembleBuildCmd()
+	silent call s:previewWindow.Update()
+	syntax clear
+	syntax case match
+endfunction
+
+function! s:ExecBuildCmd()
+	if len(s:MarkedBuildTargets) == 0
+		call s:MarkUnMarkBuildTarget()
+	endif
+	call s:AssembleBuildCmd()
+	let s:listWindow.linepos = line(".")
+	call s:buildMenu.Close()
+	call histadd(":", s:BuildmenuMakeCmd)
+	exec s:BuildmenuMakeCmd
+endfunction
+
+function! s:AssembleBuildCmd()
+	let s:BuildmenuMakeCmd = "mak " . "--targets=" .
+				\ join(s:MarkedBuildTargets, ",")
+endfunction
+
+function! s:MarkUnMarkBuildTarget()
+	let index = line(".")-1
+	let target = get(s:buildMenu.targets, index)
+	let markIndex = index(s:MarkedBuildTargets, target)
+	if markIndex < 0
+		call add(s:MarkedBuildTargets, target)
+		exec "syntax keyword buildmenuTarget" . index . " " . target
+		exec "highlight link buildmenuTarget" . index . " Directory"
+	else
+		exec "highlight link buildmenuTarget" . index . " NONE"
+		exec "syntax clear buildmenuTarget" . index
+		call remove(s:MarkedBuildTargets, markIndex)
+	endif
+	call s:AssembleBuildCmd()
+	silent call s:previewWindow.Update()
+endfunction
+
+function! s:ReMarkBuildTargets()
+	for target in s:MarkedBuildTargets
+		let index = index(s:buildMenu.targets, target) 
+		exec "syntax keyword buildmenuTarget" . index . " " . target
+		exec "highlight link buildmenuTarget" . index . " Directory"
+	endfor
+endfunction
+
+function! s:UnSelectUnMarkAllBuildTargets()
+	for target in s:MarkedBuildTargets
+		let index = index(s:buildMenu.targets, target) 
+		let markIndex = index(s:MarkedBuildTargets, target)
+		exec "highlight link buildmenuTarget" . index . " NONE"
+		exec "syntax clear buildmenuTarget" . index
+		call remove(s:MarkedBuildTargets, markIndex)
+	endfor
+endfunction
+
+
+" SECTION: helper functions (thanks to the author of NERDtree ;-) )
+" ============================================================================
 
 function! s:NextBufferName()
     let name = "Buildmenu_" . s:NextBufferNumber()
