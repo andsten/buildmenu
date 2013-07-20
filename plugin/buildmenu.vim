@@ -241,12 +241,13 @@ function! s:listWindow.Open() dict
 		exec "edit " . t:BuildmenuTargetListBufName
 		call self.SetHeaderLineHighlightning()
 		call setline(1, self.AssembleHeaderLine("Waf v" . s:buildMenu.buildSysVersion))
-		call setline(2, "configure")
-		call setline(3, "build all")
-		call setline(4, "build targets")
-		call setline(5, self.AssembleHeaderLine("Build-Targets (". len(s:buildMenu.targets) . ")"))
-		call append(5, s:buildMenu.targets)
-		let self.lineOffset=5
+		call setline(2, "help")
+		call setline(3, "configure")
+		call setline(4, "build all")
+		call setline(5, "build targets")
+		call setline(6, self.AssembleHeaderLine("Build-Targets (". len(s:buildMenu.targets) . ")"))
+		call append(6, s:buildMenu.targets)
+		let self.lineOffset=6
 		call self.GotoLastSavedLinePos()
 		call self.SetKeyMappings()
 		call self.SetOptions()
@@ -474,6 +475,8 @@ function! s:AssembleBuildCmd()
 		elseif cmd == "build targets"
 			let s:BuildmenuMakeCmd = "mak " . "--targets=" .
 						\ join(s:buildMenu.markedTargets, ",")
+		elseif cmd == "help"
+			let s:BuildmenuMakeCmd = "mak --help"
 		else 
 			let s:BuildmenuMakeCmd = "mak"
 		endif
