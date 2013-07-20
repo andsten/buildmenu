@@ -242,14 +242,14 @@ function! s:listWindow.Open() dict
 		call self.SetHeaderLineHighlightning()
 		call setline(1, self.AssembleHeaderLine("Waf v" . s:buildMenu.buildSysVersion))
 		call setline(2, "configure")
-		call setline(3, "build")
-		call setline(4, self.AssembleHeaderLine("Build-Targets (". len(s:buildMenu.targets) . ")"))
-		call append(4, s:buildMenu.targets)
-		let self.lineOffset=4
+		call setline(3, "build all")
+		call setline(4, "build targets")
+		call setline(5, self.AssembleHeaderLine("Build-Targets (". len(s:buildMenu.targets) . ")"))
+		call append(5, s:buildMenu.targets)
+		let self.lineOffset=5
 		call self.GotoLastSavedLinePos()
 		call self.SetKeyMappings()
 		call self.SetOptions()
-		call self.SetUnEditable()
 		call s:ReMarkBuildTargets()
 	endif
 endfunction
@@ -320,9 +320,7 @@ function! s:listWindow.SetKeyMappings() dict
 	map <buffer> <CR> :call <SID>ExecBuildCmd()<CR>
 	map <buffer> <Space> :call <SID>MarkUnMarkBuildTarget()<CR>
 	map <buffer> R :call <SID>RefreshBuildTargetList()<CR>
-endfunction
 
-function! s:listWindow.SetUnEditable() dict
 	"if someone knows a better way to prevent getting into insert mode,
 	"please implement it
 	map <buffer> i <Nop>
@@ -365,7 +363,8 @@ function! s:previewWindow.Open() dict
 			let t:BuildmenuPreviewBufName = s:NextBufferName()
 			exec "topleft 1 new"
 			exec "edit " . t:BuildmenuPreviewBufName
-			call append(".", s:BuildmenuMakeCmd)
+			let cmd = s:BuildmenuMakeCmd
+			call append(".", substitute(cmd, "mak", &makeprg, ""))
 			normal dd
 			call self.ResizeHeightToFit()
 			call self.SetOptions()
@@ -383,6 +382,7 @@ function! s:previewWindow.Close() dict
 endfunction
 
 function! s:previewWindow.Update() dict
+	call s:AssembleBuildCmd()
 	if g:BuildmenuShowBuildCmdPreview == 1
 		if exists('t:BuildmenuPreviewBufName')
 			if g:BuildmenuPosition == "left"
@@ -391,7 +391,8 @@ function! s:previewWindow.Update() dict
 				exec "normal! \<C-w>h\<C-w>k"
 			endif
 			normal ggdG
-			call append(".", s:BuildmenuMakeCmd)
+			let cmd = s:BuildmenuMakeCmd
+			call append(".", substitute(cmd, "mak", &makeprg, ""))
 			normal dd
 			call self.ResizeHeightToFit()
 			if g:BuildmenuPosition == "left"
@@ -436,15 +437,22 @@ function! s:RefreshBuildTargetList()
 	call append(".", s:buildMenu.targets)
 	normal dd
 	normal gg
-	call s:AssembleBuildCmd()
 	silent call s:previewWindow.Update()
 	syntax clear
 	syntax case match
 endfunction
 
 function! s:ExecBuildCmd()
-	if len(s:buildMenu.markedTargets) == 0
-		call s:MarkUnMarkBuildTarget()
+	if line(".") > s:listWindow.lineOffset
+		if len(s:buildMenu.markedTargets) == 0
+			call s:MarkUnMarkBuildTarget()
+		endif
+	else
+		let cmd = getline(".")
+		if match(cmd, "^\[.*") != -1
+			echo "header"
+			return
+		endif
 	endif
 	call s:AssembleBuildCmd()
 	let s:listWindow.linepos = line(".")
@@ -454,8 +462,22 @@ function! s:ExecBuildCmd()
 endfunction
 
 function! s:AssembleBuildCmd()
-	let s:BuildmenuMakeCmd = "mak " . "--targets=" .
-				\ join(s:buildMenu.markedTargets, ",")
+	if line(".") > s:listWindow.lineOffset
+		let s:BuildmenuMakeCmd = "mak " . "--targets=" .
+					\ join(s:buildMenu.markedTargets, ",")
+	else
+		let cmd = getline(".")
+		if cmd == "configure"
+			let s:BuildmenuMakeCmd = "mak configure"
+		elseif cmd == "build all"
+			let s:BuildmenuMakeCmd = "mak build"
+		elseif cmd == "build targets"
+			let s:BuildmenuMakeCmd = "mak " . "--targets=" .
+						\ join(s:buildMenu.markedTargets, ",")
+		else 
+			let s:BuildmenuMakeCmd = "mak"
+		endif
+	endif
 endfunction
 
 function! s:MarkUnMarkBuildTarget()
@@ -471,7 +493,6 @@ function! s:MarkUnMarkBuildTarget()
 			call s:listWindow.UnMarkTargetLine(index)
 			call remove(s:buildMenu.markedTargets, markIndex)
 		endif
-		call s:AssembleBuildCmd()
 		silent call s:previewWindow.Update()
 	endif
 endfunction
