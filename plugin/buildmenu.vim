@@ -243,12 +243,14 @@ function! s:listWindow.Open() dict
 		call self.SetHeaderLineHighlightning()
 		call setline(1, self.AssembleHeaderLine("Waf v" . s:buildMenu.buildSysVersion))
 		call setline(2, "help")
-		call setline(3, "configure")
-		call setline(4, "build all")
-		call setline(5, "build targets")
-		call setline(6, self.AssembleHeaderLine("Build-Targets (". len(s:buildMenu.targets) . ")"))
-		call append(6, s:buildMenu.targets)
-		let self.lineOffset=6
+		call setline(3, "clean")
+		call setline(4, "distclean")
+		call setline(5, "configure")
+		call setline(6, "build all")
+		call setline(7, "build targets")
+		call setline(8, self.AssembleHeaderLine("Build-Targets (". len(s:buildMenu.targets) . ")"))
+		call append(8, s:buildMenu.targets)
+		let self.lineOffset=8
 		call self.GotoLastSavedLinePos()
 		call self.SetKeyMappings()
 		call s:ReMarkBuildTargets()
@@ -438,16 +440,12 @@ endfunction
 function! s:RefreshBuildTargetList()
 	call s:UnSelectUnMarkAllBuildTargets()
 	call s:listWindow.UnSetHeaderLineHighlightning()
-	"normal gg^VGd
 	call s:buildMenu.GetBuildTargetList()
 	call s:listWindow.CalculateOptimalWidth(s:buildMenu.targets)
 	"syntax clear
 	"syntax case match
 	call s:listWindow.Close()
 	call s:listWindow.Open()
-	"call append(".", s:buildMenu.targets)
-	"normal dd
-	"normal gg
 	silent call s:previewWindow.Update()
 endfunction
 
@@ -478,6 +476,10 @@ function! s:AssembleBuildCmd()
 		let cmd = getline(".")
 		if cmd == "configure"
 			let s:BuildmenuMakeCmd = "mak configure"
+		elseif cmd == "clean"
+			let s:BuildmenuMakeCmd = "mak clean"
+		elseif cmd == "distclean"
+			let s:BuildmenuMakeCmd = "mak distclean"
 		elseif cmd == "build all"
 			let s:BuildmenuMakeCmd = "mak build"
 		elseif cmd == "build targets"
