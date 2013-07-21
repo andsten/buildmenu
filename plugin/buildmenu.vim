@@ -199,22 +199,21 @@ function! s:buildMenu.RunPreChecks() dict
 endfunction
 
 function! s:buildMenu.GetBuildTargetList() dict
+	let self.markedTargets = []
 	let wafoutput = system(g:BuildmenuGetTargetListCmd)
+	let self.targets = split(wafoutput)
 	
 	"stop if not yet configured
 	if match(wafoutput, "project was not configured") != -1
-		echoe "The Waf project was not configured: run 'waf configure' first!"
+		echo "Warning: The Waf project was not configured: run 'waf configure' first!"
+		return
 	endif
-
-	let self.targets = split(wafoutput)
 
 	"remove waf ouput which is not part of target list
 	let idx = match(self.targets, "'list'") 
 	if idx != -1
 		call remove(self.targets, idx, -1)
 	endif
-
-	let self.markedTargets = []
 endfunction
 
 function s:buildMenu.GetBuildSystemVersionNumber() dict
@@ -239,6 +238,8 @@ function! s:listWindow.Open() dict
 		endif
 		exec winPos . " vertical " . self.width . " new"
 		exec "edit " . t:BuildmenuTargetListBufName
+		call self.SetOptions()
+		call self.UnSetHeaderLineHighlightning()
 		call self.SetHeaderLineHighlightning()
 		call setline(1, self.AssembleHeaderLine("Waf v" . s:buildMenu.buildSysVersion))
 		call setline(2, "help")
@@ -250,7 +251,6 @@ function! s:listWindow.Open() dict
 		let self.lineOffset=6
 		call self.GotoLastSavedLinePos()
 		call self.SetKeyMappings()
-		call self.SetOptions()
 		call s:ReMarkBuildTargets()
 	endif
 endfunction
@@ -276,6 +276,11 @@ endfunction
 function! s:listWindow.SetHeaderLineHighlightning() dict
 	syntax region buildmenuHeader start="^\s*\[" end="\]"
 	highlight link buildmenuHeader StatusLine
+endfunction
+
+function! s:listWindow.UnSetHeaderLineHighlightning() dict
+	highlight link buildmenuHeader NONE
+	syntax clear buildmenuHeader 
 endfunction
 
 function! s:listWindow.MarkTargetLine(index, target) dict
@@ -432,15 +437,18 @@ endfunction
 
 function! s:RefreshBuildTargetList()
 	call s:UnSelectUnMarkAllBuildTargets()
-	normal gg^VGd
+	call s:listWindow.UnSetHeaderLineHighlightning()
+	"normal gg^VGd
 	call s:buildMenu.GetBuildTargetList()
 	call s:listWindow.CalculateOptimalWidth(s:buildMenu.targets)
-	call append(".", s:buildMenu.targets)
-	normal dd
-	normal gg
+	"syntax clear
+	"syntax case match
+	call s:listWindow.Close()
+	call s:listWindow.Open()
+	"call append(".", s:buildMenu.targets)
+	"normal dd
+	"normal gg
 	silent call s:previewWindow.Update()
-	syntax clear
-	syntax case match
 endfunction
 
 function! s:ExecBuildCmd()
