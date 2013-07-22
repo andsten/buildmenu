@@ -13,6 +13,7 @@
 " plugins for their great work! :-)
 " ============================================================================
 
+
 " SECTION: Script init stuff
 " ============================================================================
 if exists("g:loaded_buildmenu")
@@ -42,7 +43,9 @@ function! s:initVariable(var, value)
     return 0
 endfunction
 
+
 " SECTION: global variables/settings
+" ============================================================================
 call s:initVariable("g:BuildmenuMinWidth", 20)
 call s:initVariable("g:BuildmenuMaxWidth", 40)
 call s:initVariable("g:BuildmenuPosition", "right")
@@ -51,7 +54,9 @@ if !exists("g:BuildmenuGetTargetListCmd")
 	let g:BuildmenuGetTargetListCmd = &makeprg . " list"
 endif
 
-" SECTION: script local variables      
+
+" SECTION: Script local variables
+" ============================================================================
 call s:initVariable("s:warnmsg", " Plugin 'buildmenu' will probably not work correctly!")
 call s:initVariable("s:abortmsg", " Aborting buildmenu plugin.")
 call s:initVariable("s:BuildmenuMakeCmd", "mak")
@@ -69,7 +74,63 @@ call s:initVariable("s:listWindow.lineOffset", 0)
 let s:previewWindow = {}
 
 
+" SECTION: dictionary s:buildCmd 
+" ============================================================================
+let s:buildCmd = {}
+let s:buildCmdIndex = []
+
+function! s:buildCmd.Create(name, cmd) dict
+	let self.name = a:name
+	let self.cmd = a:cmd
+	let self.lineOffset = 0
+	call add(s:buildCmdIndex, self)
+endfunction
+
+function! s:buildCmd.AddAllToList(lineOffset) dict
+	let self.lineOffset = a:lineOffset
+	for i in range(len(s:buildCmdIndex))
+		call setline(a:lineOffset + i, s:buildCmdIndex[i].name)
+	endfor
+endfunction
+
+function! s:buildCmd.GetCmdFromLine(lineNum) dict
+	let idx = a:lineNum - self.lineOffset
+	if idx < len(s:buildCmdIndex)
+		let cmd = s:buildCmdIndex[a:lineNum-self.lineOffset].cmd
+		if match(cmd, "targets=") != -1
+			let cmd = cmd . join(s:buildMenu.markedTargets, ",")
+		endif
+	else
+		let cmd = "mak --targets=" . join(s:buildMenu.markedTargets, ",")
+	endif
+	return cmd
+endfunction
+
+function! s:InitBuildCmds()
+	let s:cmdWafHelp = copy(s:buildCmd)
+	call s:cmdWafHelp.Create("help", "mak --help")
+
+	let s:cmdWafClean = copy(s:buildCmd)
+	call s:cmdWafClean.Create("clean", "mak clean")
+
+	let s:cmdWafDistclean = copy(s:buildCmd)
+	call s:cmdWafDistclean.Create("distclean", "mak distclean")
+
+	let s:cmdWafConfigure = copy(s:buildCmd)
+	call s:cmdWafConfigure.Create("configure", "mak configure")
+
+	let s:cmdWafBuildAll = copy(s:buildCmd)
+	call s:cmdWafBuildAll.Create("build all", "mak build")
+
+	let s:cmdWafBuildTargets = copy(s:buildCmd)
+	call s:cmdWafBuildTargets.Create("build targets", "mak --targets=")
+endfunction
+
+
+
 " SECTION: key mappings      
+" ============================================================================
+
 " sequence '<Plug>BuildmenuToggle' is meant for the user so he/she can create
 " a mapping to toggle this plugin. If no mapping is set, no key sequence
 " can trigger it (see :help using-<Plug> for details)
@@ -83,7 +144,10 @@ if !hasmapto('<Plug>BuildmenuToggle')
   nmap <unique> <Leader>bm  <Plug>BuildmenuToggle
 endif
 
+
 " SECTION: user commands      
+" ============================================================================
+
 if !exists(":BuildmenuToggle")
   command -nargs=0  BuildmenuToggle  :call <SID>BuildmenuToggle()
 endif
@@ -100,7 +164,11 @@ endif
 " ============================================================================
 
 function! g:BuildmenuDebug()
-	echo s:buildMenu
+	"echo s:buildMenu
+	
+	for n in range(2, 7)
+		echo s:buildCmd.GetCmdFromLine(n)
+	endfor
 endfunction
 
 
@@ -176,6 +244,7 @@ function! s:buildMenu.Init() dict
 		call self.GetBuildTargetList()
 		call self.GetBuildSystemVersionNumber()
 		call s:listWindow.CalculateOptimalWidth(self.targets)
+		call s:InitBuildCmds()
 		let self.isInitialized = 1
 	endif
 endfunction
@@ -242,12 +311,7 @@ function! s:listWindow.Open() dict
 		call self.UnSetHeaderLineHighlightning()
 		call self.SetHeaderLineHighlightning()
 		call setline(1, self.AssembleHeaderLine("Waf v" . s:buildMenu.buildSysVersion))
-		call setline(2, "help")
-		call setline(3, "clean")
-		call setline(4, "distclean")
-		call setline(5, "configure")
-		call setline(6, "build all")
-		call setline(7, "build targets")
+		call s:buildCmd.AddAllToList(2)
 		call setline(8, self.AssembleHeaderLine("Build-Targets (". len(s:buildMenu.targets) . ")"))
 		call append(8, s:buildMenu.targets)
 		let self.lineOffset=8
@@ -256,6 +320,8 @@ function! s:listWindow.Open() dict
 		call s:ReMarkBuildTargets()
 	endif
 endfunction
+
+
 
 function! s:listWindow.Close() dict
 	if exists('t:BuildmenuTargetListBufName')
@@ -457,7 +523,7 @@ function! s:ExecBuildCmd()
 	else
 		let cmd = getline(".")
 		if match(cmd, "^\[.*") != -1
-			echo "header"
+			"echo "header"
 			return
 		endif
 	endif
@@ -469,28 +535,7 @@ function! s:ExecBuildCmd()
 endfunction
 
 function! s:AssembleBuildCmd()
-	if line(".") > s:listWindow.lineOffset
-		let s:BuildmenuMakeCmd = "mak " . "--targets=" .
-					\ join(s:buildMenu.markedTargets, ",")
-	else
-		let cmd = getline(".")
-		if cmd == "configure"
-			let s:BuildmenuMakeCmd = "mak configure"
-		elseif cmd == "clean"
-			let s:BuildmenuMakeCmd = "mak clean"
-		elseif cmd == "distclean"
-			let s:BuildmenuMakeCmd = "mak distclean"
-		elseif cmd == "build all"
-			let s:BuildmenuMakeCmd = "mak build"
-		elseif cmd == "build targets"
-			let s:BuildmenuMakeCmd = "mak " . "--targets=" .
-						\ join(s:buildMenu.markedTargets, ",")
-		elseif cmd == "help"
-			let s:BuildmenuMakeCmd = "mak --help"
-		else 
-			let s:BuildmenuMakeCmd = "mak"
-		endif
-	endif
+	let s:BuildmenuMakeCmd = s:buildCmd.GetCmdFromLine(line("."))
 endfunction
 
 function! s:MarkUnMarkBuildTarget()
