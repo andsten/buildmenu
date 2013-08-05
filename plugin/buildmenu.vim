@@ -71,6 +71,7 @@ let s:listWindow = {}
 call s:initVariable("s:listWindow.width", g:BuildmenuMinWidth)
 call s:initVariable("s:listWindow.lineOffset", 0)
 call s:initVariable("s:listWindow.bufName", "buildmenu")
+let s:listWindow.view = {}
 
 let s:previewWindow = {}
 call s:initVariable("s:previewWindow.bufName", "buildcmdpreview")
@@ -166,12 +167,7 @@ endif
 " ============================================================================
 
 function! g:BuildmenuDebug()
-	echo s:listWindow.width
-	echo s:listWindow.bufName
-	
-	"for n in range(2, 7)
-	"	echo s:buildCmd.GetCmdFromLine(n)
-	"endfor
+	call <SID>RestoreListWindowView()
 endfunction
 
 
@@ -323,21 +319,32 @@ function! s:listWindow.Open() dict
 		call self.SetKeyMappings()
 		call self.SetOptions()
 		setlocal statusline=%{g:Buildmenu_ListWindow_StatusLine}
+		call s:RestoreListWindowView()
 	else
 		exec winPos . " vertical " . self.width . " split " . self.bufName
 	endif
-endfunction
-
-function! s:listWindow.AssembleStatusLine() dict
-	let g:Buildmenu_ListWindow_StatusLine = "Waf v" . s:buildMenu.buildSysVersion
 endfunction
 
 function! s:listWindow.Close() dict
 	if bufexists(self.bufName)
 		execute bufwinnr(self.bufName) . "wincmd w"
 		let self.linepos = line(".")
+		let self.view = winsaveview()
 		hide
 	endif
+endfunction
+
+function! s:listWindow.CloseAndWipe() dict
+	call self.Close()
+	silent! exec "bwipeout " . self.bufName
+endfunction
+
+function! s:RestoreListWindowView()
+	call winrestview(s:listWindow.view)
+endfunction
+
+function! s:listWindow.AssembleStatusLine() dict
+	let g:Buildmenu_ListWindow_StatusLine = "Waf v" . s:buildMenu.buildSysVersion
 endfunction
 
 function! s:listWindow.AssembleHeaderLine(text) dict
@@ -362,6 +369,7 @@ function! s:listWindow.UnSetHeaderLineHighlightning() dict
 endfunction
 
 function! s:listWindow.MarkTargetLine(index, target) dict
+	"TODO: collect highlights in a group for comfortable cleanup
 	exec "syntax keyword buildmenuTarget" . a:index . " " . a:target
 	exec "highlight link buildmenuTarget" . a:index . " Question"
 endfunction
@@ -500,7 +508,7 @@ function! s:RefreshBuildTargetList()
 	call s:listWindow.CalculateOptimalWidth(s:buildMenu.targets)
 	"syntax clear
 	"syntax case match
-	call s:listWindow.Close()
+	call s:listWindow.CloseAndWipe()
 	call s:listWindow.Open()
 	silent call s:previewWindow.Update()
 endfunction
