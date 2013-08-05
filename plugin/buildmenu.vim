@@ -70,8 +70,10 @@ call s:initVariable("s:buildMenu.isOpen", 0)
 let s:listWindow = {}
 call s:initVariable("s:listWindow.width", g:BuildmenuMinWidth)
 call s:initVariable("s:listWindow.lineOffset", 0)
+call s:initVariable("s:listWindow.bufName", "buildmenu")
 
 let s:previewWindow = {}
+call s:initVariable("s:previewWindow.bufName", "buildcmdpreview")
 
 
 " SECTION: dictionary s:buildCmd 
@@ -164,11 +166,12 @@ endif
 " ============================================================================
 
 function! g:BuildmenuDebug()
-	"echo s:buildMenu
+	echo s:listWindow.width
+	echo s:listWindow.bufName
 	
-	for n in range(2, 7)
-		echo s:buildCmd.GetCmdFromLine(n)
-	endfor
+	"for n in range(2, 7)
+	"	echo s:buildCmd.GetCmdFromLine(n)
+	"endfor
 endfunction
 
 
@@ -197,6 +200,7 @@ function! s:buildMenu.Open() dict
 		if self.isOpen == 0
 			call s:previewWindow.Open()
 			call s:listWindow.Open()
+			call s:listWindow.GotoLastSavedLinePos()
 			let self.isOpen = 1
 		endif
 	catch /.*/
@@ -223,6 +227,7 @@ function! s:buildMenu.Toggle() dict
 		if self.isOpen == 0
 			call s:previewWindow.Open()
 			call s:listWindow.Open()
+			call s:listWindow.GotoLastSavedLinePos()
 			let self.isOpen = 1
 		else
 			call s:listWindow.Close()
@@ -298,16 +303,14 @@ endfunction
 " ============================================================================
 
 function! s:listWindow.Open() dict
-	if !exists('t:BuildmenuTargetListBufName')
-		let t:BuildmenuTargetListBufName = s:NextBufferName()
-		if g:BuildmenuPosition == "left"
-			let winPos = "topleft"
-		else
-			let winPos = "botright"
-		endif
+	if g:BuildmenuPosition == "left"
+		let winPos = "topleft"
+	else
+		let winPos = "botright"
+	endif
+	if !bufexists(self.bufName)
 		exec winPos . " vertical " . self.width . " new"
-		exec "edit " . t:BuildmenuTargetListBufName
-		call self.SetOptions()
+		exec "edit " . self.bufName
 		call self.UnSetHeaderLineHighlightning()
 		call self.SetHeaderLineHighlightning()
 		call setline(1, self.AssembleHeaderLine("Waf v" . s:buildMenu.buildSysVersion))
@@ -315,18 +318,20 @@ function! s:listWindow.Open() dict
 		call setline(8, self.AssembleHeaderLine("Build-Targets (". len(s:buildMenu.targets) . ")"))
 		call append(8, s:buildMenu.targets)
 		let self.lineOffset=8
-		call self.GotoLastSavedLinePos()
 		call self.SetKeyMappings()
-		call s:ReMarkBuildTargets()
+		call self.SetOptions()
+	else
+		exec winPos . " vertical " . self.width . " split " . self.bufName
 	endif
 endfunction
 
 
 
 function! s:listWindow.Close() dict
-	if exists('t:BuildmenuTargetListBufName')
-		silent! exec "bwipeout " . t:BuildmenuTargetListBufName
-		unlet! t:BuildmenuTargetListBufName
+	if bufexists(self.bufName)
+		execute bufwinnr(self.bufName) . "wincmd w"
+		let self.linepos = line(".")
+		hide
 	endif
 endfunction
 
@@ -379,43 +384,21 @@ function! s:listWindow.SetOptions() dict
    	setlocal winfixwidth
 	setlocal noswapfile
 	setlocal buftype=nofile
-	setlocal bufhidden=wipe
 	setlocal nowrap
 	setlocal foldcolumn=0
 	setlocal foldmethod=manual
 	setlocal nofoldenable
 	setlocal nobuflisted
 	setlocal nospell
-	"setlocal readonly
 	setlocal iskeyword+=.
+	setlocal nomodifiable
+	setlocal nowrite
 endfunction
 
 function! s:listWindow.SetKeyMappings() dict
 	map <buffer> <CR> :call <SID>ExecBuildCmd()<CR>
 	map <buffer> <Space> :call <SID>MarkUnMarkBuildTarget()<CR>
 	map <buffer> R :call <SID>RefreshBuildTargetList()<CR>
-
-	"if someone knows a better way to prevent getting into insert mode,
-	"please implement it
-	map <buffer> i <Nop>
-	map <buffer> I <Nop>
-	map <buffer> a <Nop>
-	map <buffer> A <Nop>
-	map <buffer> x <Nop>
-	map <buffer> X <Nop>
-	map <buffer> d <Nop>
-	map <buffer> D <Nop>
-	map <buffer> dd <Nop>
-	map <buffer> o <Nop>
-	map <buffer> O <Nop>
-	map <buffer> y <Nop>
-	map <buffer> p <Nop>
-	map <buffer> r <Nop>
-	map <buffer> s <Nop>
-	map <buffer> c <Nop>
-	map <buffer> v <Nop>
-	map <buffer> V <Nop>
-	"...
 endfunction
 
 function! s:listWindow.GotoLastSavedLinePos() dict
@@ -433,24 +416,25 @@ endfunction
 
 function! s:previewWindow.Open() dict
 	if g:BuildmenuShowBuildCmdPreview == 1
-		if !exists('t:BuildmenuPreviewBufName')
-			let t:BuildmenuPreviewBufName = s:NextBufferName()
+		if !bufexists(self.bufName)
 			exec "topleft 1 new"
-			exec "edit " . t:BuildmenuPreviewBufName
+			exec "edit " . self.bufName
 			let cmd = s:BuildmenuMakeCmd
 			call append(".", substitute(cmd, "mak", &makeprg, ""))
 			normal dd
 			call self.ResizeHeightToFit()
 			call self.SetOptions()
+		else
+			exec "topleft 1 split " . self.bufName
 		endif
 	endif
 endfunction
 
 function! s:previewWindow.Close() dict
 	if g:BuildmenuShowBuildCmdPreview == 1
-		if exists('t:BuildmenuPreviewBufName')
-			silent! exec "bwipeout " . t:BuildmenuPreviewBufName
-			unlet! t:BuildmenuPreviewBufName
+		if bufexists(self.bufName)
+			execute bufwinnr(self.bufName) . "wincmd w"
+			hide
 		endif
 	endif
 endfunction
@@ -458,23 +442,18 @@ endfunction
 function! s:previewWindow.Update() dict
 	call s:AssembleBuildCmd()
 	if g:BuildmenuShowBuildCmdPreview == 1
-		if exists('t:BuildmenuPreviewBufName')
-			if g:BuildmenuPosition == "left"
-				exec "normal! \<C-w>l\<C-w>k"
-			else
-				exec "normal! \<C-w>h\<C-w>k"
-			endif
+		if bufexists(self.bufName)
+			let currwinnr = winnr()
+			execute bufwinnr(self.bufName) . "wincmd w"
+			setlocal modifiable
 			normal ggdG
 			let cmd = s:BuildmenuMakeCmd
 			call append(".", substitute(cmd, "mak", &makeprg, ""))
 			normal dd
 			call self.ResizeHeightToFit()
-			if g:BuildmenuPosition == "left"
-				exec "normal! \<C-w>h"
-			else
-				exec "normal! \<C-w>l"
-			endif
-		endif
+			setlocal nomodifiable
+			execute currwinnr . "wincmd w"
+		end
 	endif
 endfunction
 
@@ -488,14 +467,15 @@ function! s:previewWindow.SetOptions() dict
    	setlocal winfixwidth
 	setlocal noswapfile
 	setlocal buftype=nofile
-	setlocal bufhidden=wipe
 	setlocal wrap
 	setlocal foldcolumn=0
 	setlocal foldmethod=manual
 	setlocal nofoldenable
 	setlocal nobuflisted
 	setlocal nospell
-	"setlocal readonly
+	setlocal iskeyword+=.
+	setlocal nomodifiable
+	setlocal nowrite
 endfunction
 
 
@@ -553,13 +533,6 @@ function! s:MarkUnMarkBuildTarget()
 		endif
 		silent call s:previewWindow.Update()
 	endif
-endfunction
-
-function! s:ReMarkBuildTargets()
-	for target in s:buildMenu.markedTargets
-		let index = index(s:buildMenu.targets, target) 
-		call s:listWindow.MarkTargetLine(index, target)
-	endfor
 endfunction
 
 function! s:UnSelectUnMarkAllBuildTargets()
