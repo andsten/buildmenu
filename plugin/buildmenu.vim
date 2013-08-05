@@ -249,6 +249,8 @@ function! s:buildMenu.Init() dict
 		call self.GetBuildTargetList()
 		call self.GetBuildSystemVersionNumber()
 		call s:listWindow.CalculateOptimalWidth(self.targets)
+		call s:listWindow.AssembleStatusLine()
+		call s:previewWindow.AssembleStatusLine()
 		call s:InitBuildCmds()
 		let self.isInitialized = 1
 	endif
@@ -313,19 +315,22 @@ function! s:listWindow.Open() dict
 		exec "edit " . self.bufName
 		call self.UnSetHeaderLineHighlightning()
 		call self.SetHeaderLineHighlightning()
-		call setline(1, self.AssembleHeaderLine("Waf v" . s:buildMenu.buildSysVersion))
+		call setline(1, self.AssembleHeaderLine("Build-Commands"))
 		call s:buildCmd.AddAllToList(2)
 		call setline(8, self.AssembleHeaderLine("Build-Targets (". len(s:buildMenu.targets) . ")"))
 		call append(8, s:buildMenu.targets)
 		let self.lineOffset=8
 		call self.SetKeyMappings()
 		call self.SetOptions()
+		setlocal statusline=%{g:Buildmenu_ListWindow_StatusLine}
 	else
 		exec winPos . " vertical " . self.width . " split " . self.bufName
 	endif
 endfunction
 
-
+function! s:listWindow.AssembleStatusLine() dict
+	let g:Buildmenu_ListWindow_StatusLine = "Waf v" . s:buildMenu.buildSysVersion
+endfunction
 
 function! s:listWindow.Close() dict
 	if bufexists(self.bufName)
@@ -424,10 +429,15 @@ function! s:previewWindow.Open() dict
 			normal dd
 			call self.ResizeHeightToFit()
 			call self.SetOptions()
+			setlocal statusline=%{g:Buildmenu_PreviewWindow_StatusLine}
 		else
 			exec "topleft 1 split " . self.bufName
 		endif
 	endif
+endfunction
+
+function! s:previewWindow.AssembleStatusLine() dict
+	let g:Buildmenu_PreviewWindow_StatusLine = "Build command preview"
 endfunction
 
 function! s:previewWindow.Close() dict
