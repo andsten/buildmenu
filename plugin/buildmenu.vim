@@ -196,7 +196,7 @@ function! s:buildMenu.Open() dict
 		if self.isOpen == 0
 			call s:previewWindow.Open()
 			call s:listWindow.Open()
-			call s:listWindow.GotoLastSavedLinePos()
+			"call s:listWindow.GotoLastSavedLinePos()
 			let self.isOpen = 1
 		endif
 	catch /.*/
@@ -223,12 +223,17 @@ function! s:buildMenu.Toggle() dict
 		if self.isOpen == 0
 			call s:previewWindow.Open()
 			call s:listWindow.Open()
-			call s:listWindow.GotoLastSavedLinePos()
+			"call s:listWindow.GotoLastSavedLinePos()
 			let self.isOpen = 1
 		else
-			call s:listWindow.Close()
-			call s:previewWindow.Close()
-			let self.isOpen = 0
+			let rv1 = s:listWindow.Close()
+			let rv2 = s:previewWindow.Close()
+			if rv1 == -1 && rv2 == -1
+				call s:previewWindow.Open()
+				call s:listWindow.Open()
+			else
+				let self.isOpen = 0
+			endif
 		endif
 	catch /.*/
 		echoe v:exception
@@ -319,19 +324,25 @@ function! s:listWindow.Open() dict
 		call self.SetKeyMappings()
 		call self.SetOptions()
 		setlocal statusline=%{g:Buildmenu_ListWindow_StatusLine}
-		call s:RestoreListWindowView()
 	else
 		exec winPos . " vertical " . self.width . " split " . self.bufName
+		call s:RestoreListWindowView()
 	endif
 endfunction
 
 function! s:listWindow.Close() dict
 	if bufexists(self.bufName)
-		execute bufwinnr(self.bufName) . "wincmd w"
-		let self.linepos = line(".")
-		let self.view = winsaveview()
-		hide
+		let winnr = bufwinnr(self.bufName)
+		if winnr != -1
+			execute winnr . "wincmd w"
+			let self.linepos = line(".")
+			let self.view = winsaveview()
+			hide
+		else
+			return -1
+		endif
 	endif
+	return 0
 endfunction
 
 function! s:listWindow.CloseAndWipe() dict
@@ -340,7 +351,9 @@ function! s:listWindow.CloseAndWipe() dict
 endfunction
 
 function! s:RestoreListWindowView()
-	call winrestview(s:listWindow.view)
+	if len(s:listWindow.view) > 0
+		call winrestview(s:listWindow.view)
+	endif
 endfunction
 
 function! s:listWindow.AssembleStatusLine() dict
@@ -396,6 +409,7 @@ function! s:listWindow.SetOptions() dict
 	syntax case match
    	setlocal winfixwidth
 	setlocal noswapfile
+	setlocal bufhidden=hide
 	setlocal buftype=nofile
 	setlocal nowrap
 	setlocal foldcolumn=0
@@ -405,7 +419,6 @@ function! s:listWindow.SetOptions() dict
 	setlocal nospell
 	setlocal iskeyword+=.
 	setlocal nomodifiable
-	setlocal nowrite
 endfunction
 
 function! s:listWindow.SetKeyMappings() dict
@@ -451,25 +464,36 @@ endfunction
 function! s:previewWindow.Close() dict
 	if g:BuildmenuShowBuildCmdPreview == 1
 		if bufexists(self.bufName)
-			execute bufwinnr(self.bufName) . "wincmd w"
-			hide
+			let winnr = bufwinnr(self.bufName)
+			if winnr != -1
+				execute winnr . "wincmd w"
+				hide
+			else
+				return -1
+			endif
 		endif
 	endif
+	return 0
 endfunction
 
 function! s:previewWindow.Update() dict
 	call s:AssembleBuildCmd()
 	if g:BuildmenuShowBuildCmdPreview == 1
 		if bufexists(self.bufName)
+			let winnr = bufwinnr(self.bufName)
 			let currwinnr = winnr()
-			execute bufwinnr(self.bufName) . "wincmd w"
-			setlocal modifiable
-			normal ggdG
-			let cmd = s:BuildmenuMakeCmd
-			call append(".", substitute(cmd, "mak", &makeprg, ""))
-			normal dd
-			call self.ResizeHeightToFit()
-			setlocal nomodifiable
+			if winnr != -1
+				execute bufwinnr(self.bufName) . "wincmd w"
+				setlocal modifiable
+				normal ggdG
+				let cmd = s:BuildmenuMakeCmd
+				call append(".", substitute(cmd, "mak", &makeprg, ""))
+				normal dd
+				call self.ResizeHeightToFit()
+				setlocal nomodifiable
+			else
+				call self.Open()
+			endif
 			execute currwinnr . "wincmd w"
 		end
 	endif
@@ -484,6 +508,7 @@ function! s:previewWindow.SetOptions() dict
 	syntax case match
    	setlocal winfixwidth
 	setlocal noswapfile
+	setlocal bufhidden=hide
 	setlocal buftype=nofile
 	setlocal wrap
 	setlocal foldcolumn=0
@@ -493,7 +518,6 @@ function! s:previewWindow.SetOptions() dict
 	setlocal nospell
 	setlocal iskeyword+=.
 	setlocal nomodifiable
-	setlocal nowrite
 endfunction
 
 
