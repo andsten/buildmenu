@@ -8,9 +8,9 @@ License: WTFPL, see http://sam.zoy.org/wtfpl/COPYING
 
 
 If you use the build-tool {Waf} http://code.google.com/p/waf, this plugin will
-assist you by providing a comfortable sidebar menu which lists all existing
-build-targets of your current project. You can select one or more targets from
-the list for building. 
+assist you by providing a comfortable sidebar menu which lists major {Waf}
+commands and all existing build-targets of your current project. You can
+select one or more targets from the list for building. 
 
 This script is still quite young and far from being feature complete.
 
@@ -28,10 +28,10 @@ this: >
 <
 
 By default this plugin only executes the {Waf} command "./waf list" once when
-the sidebar menu is opened for the first time in the vim session. When closing
-and re-opening the menu, this command is not executed again and the list of
-build-targets stays the same. You can press 'R' (for "refresh") in the menu 
-to execute "./waf list" again.
+the sidebar menu is opened for the first time in the vim session (to obtain
+the list of build-targets). When closing and re-opening the menu, this command
+is not executed again and the list of build-targets stays the same. You can
+press 'R' (for "refresh") in the menu to execute "./waf list" again.
 
 ==============================================================================
 SETUP                                                        *Buildmenu-setup*
@@ -46,10 +46,10 @@ line like the following one in your |.vimrc| file: >
 <
 
 The {Waf} build system by default expects the user to place the {Waf} binary
-in the root directory of his/her code project, together with a {wscript}
-file. This is why the example |.vimrc| line above sets |makeprg| to './waf'.
-If your {Waf} binary is located in another path, then you need to set
-|makeprg| to this path.
+in the root directory of his/her code project, together with a {wscript} file.
+This is why the example |.vimrc| line above sets |makeprg| to './waf'. If your
+{Waf} binary is located in another path, then you need to set |makeprg| to
+this path.
 
 Nevertheless for {Waf} (and this plugin) to work properly, the current
 working directory (|:pwd|) must be the root directory of your code project,
@@ -114,6 +114,8 @@ Mappings in the sidebar menu:
               The build command will be added to the ex command history of
               Vim. So you can easily execute it again by pressing ":" and 
               the cursor up key.
+
+R             Refresh list of build-targets (by calling './waf list' again).
 
 
 ==============================================================================

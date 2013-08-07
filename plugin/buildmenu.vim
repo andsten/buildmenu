@@ -472,8 +472,9 @@ function! s:previewWindow.Close() dict
 				return -1
 			endif
 		endif
+		return 0
 	endif
-	return 0
+	return -1 
 endfunction
 
 function! s:previewWindow.Update() dict
