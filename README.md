@@ -4,10 +4,10 @@ License: WTFPL, see http://sam.zoy.org/wtfpl/COPYING
 
 See also http://www.vim.org/scripts/script.php?script_id=4659
 
-If you use the build-system [Waf](http://code.google.com/p/waf), this plugin will
-assist you by providing a comfortable sidebar menu which lists all existing
-build-targets of your current project. You can select one or more targets from
-the list for building. 
+If you use the build-system [Waf](http://code.google.com/p/waf), this plugin
+will assist you by providing a comfortable sidebar menu which lists major *Waf*
+commands and all existing build-targets of your current project. You can select
+one or more targets from the list for building. 
 
 See [Wiki](https://github.com/shirai07/buildmenu/wiki) for a screenshot of the Buildmenu plugin.
 
@@ -15,7 +15,6 @@ This script is still quite young and far from being feature complete.
 
 Planned features for future versions:
 - user can add own args to the waf command-line for building
-- providing waf default commands (configure, build, ...)
 - quick-help in the style of NERDTree (when pressing *?*)
 - support of other build systems like *SCons* and *GNU Make* (if feasible)
 
@@ -47,10 +46,10 @@ To start building the selected targets, just hit **Enter** while your cursor has
 focus on the buildmenu target list.
 
 By default this plugin only executes the *Waf* command "./waf list" once when
-the sidebar menu is opened for the first time in the vim session. When closing
-and re-opening the menu, this command is not executed again and the list of
-build-targets stays the same. You can press **'R'** (for "refresh") in the menu 
-to execute "./waf list" again.
+the sidebar menu is opened for the first time in the vim session (to obtain the
+list of build-targets). When closing and re-opening the menu, this command is
+not executed again and the list of build-targets stays the same. You can press
+**'R'** (for "refresh") in the menu to execute "./waf list" again.
 
 ## Setup ##
 
@@ -131,6 +130,10 @@ means 'make all':
 The build command will be added to the ex command history of
 Vim. So you can easily execute it again by pressing ":" and 
 the cursor up key.
+
+#### R ####
+Refresh list of build-targets by pressing *R*. The script will
+call './waf list' again to refresh the list.
 
 
 ## Help ##
