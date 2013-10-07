@@ -6,7 +6,7 @@
 "              it and/or modify it under the terms of the Do What The Fuck You
 "              Want To Public License, Version 2, as published by Sam Hocevar.
 "              See http://sam.zoy.org/wtfpl/COPYING for more details.
-" Version:     unstable deverloper version 0.1<v<0.2
+" Version:     unstable deverloper version 0.2<v<0.3
 "
 " I took several code snippets and ideas from other vim plugins like e.g.
 " NERDtree, fugitive ... Hereby a warm 'thank you' to the authors of those
@@ -566,7 +566,7 @@ function! s:MarkUnMarkBuildTarget()
 		let index = line(".")-1-s:listWindow.lineOffset
 		let target = get(s:buildMenu.targets, index)
 		let markIndex = index(s:buildMenu.markedTargets, target)
-		echo markIndex
+		"echo markIndex
 		if markIndex < 0
 			call add(s:buildMenu.markedTargets, target)
 			call s:listWindow.MarkTargetLine(index, target)
@@ -583,8 +583,8 @@ function! s:UnSelectUnMarkAllBuildTargets()
 		let index = index(s:buildMenu.targets, target) 
 		let markIndex = index(s:buildMenu.markedTargets, target)
 		call s:listWindow.UnMarkTargetLine(index)
-		call remove(s:buildMenu.markedTargets, markIndex)
 	endfor
+	let s:buildMenu.markedTargets = []
 endfunction
 
 
